@@ -1,0 +1,316 @@
+/* NETX — Proxy IP Setting Stylesheet (Clean White Background) */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+}
+
+.proxy-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: #ffffff; /* Solid White Window Background */
+  border: 1px solid #855be4;
+  color: #1e293b;
+  overflow: hidden;
+}
+
+/* 1. Purple Titlebar */
+.proxy-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  background: #855be4;
+  padding: 0 10px 0 14px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.proxy-titlebar-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #000000;
+  letter-spacing: 0.3px;
+}
+
+.proxy-close-btn {
+  background: transparent;
+  border: none;
+  color: #00e5ff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  -webkit-app-region: no-drag;
+}
+
+.proxy-close-btn:hover {
+  color: #ff4d4f;
+}
+
+/* 2. Window Body Container */
+.proxy-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+/* 3. Panel Cards */
+.proxy-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.proxy-card-header {
+  font-size: 12px;
+  font-weight: 800;
+  color: #1e293b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+/* Form Inputs Grid */
+.proxy-inputs-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.85fr 1.15fr 1.15fr;
+  gap: 6px;
+}
+
+.proxy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.proxy-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.proxy-field input {
+  height: 26px;
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.proxy-field input:focus {
+  border-color: #855be4;
+  box-shadow: 0 0 0 1px #855be4;
+}
+
+/* Save Row */
+.proxy-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.proxy-btn-save {
+  background: #ffffff;
+  border: 1px solid #855be4;
+  border-radius: 3px;
+  padding: 4px 24px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #855be4;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 100ms ease;
+}
+
+.proxy-btn-save:hover {
+  background: #855be4;
+  color: #ffffff;
+}
+
+/* Sub-section Proxy IP */
+.proxy-select-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+}
+
+.proxy-select-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  margin: 0;
+}
+
+.proxy-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proxy-dropdown {
+  flex: 1;
+  height: 28px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.proxy-btn-action {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background 100ms ease;
+  white-space: nowrap;
+}
+
+.proxy-btn-action:hover {
+  background: #f1f5f9;
+}
+
+.proxy-delete-all-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.proxy-btn-delete-all {
+  background: #fee2e2;
+  border: 1px solid #f87171;
+  border-radius: 3px;
+  padding: 3px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background 100ms ease;
+}
+
+.proxy-btn-delete-all:hover {
+  background: #fca5a5;
+}
+
+/* 4. Bottom Card: Set Proxy Limit */
+.proxy-limit-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proxy-limit-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0;
+}
+
+.proxy-limit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.proxy-limit-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.2px;
+}
+
+.proxy-limit-input {
+  width: 44px;
+  height: 26px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+}
+
+.proxy-btn-save-limit {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 4px 18px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background 100ms ease;
+}
+
+.proxy-btn-save-limit:hover {
+  background: #f1f5f9;
+}
+
+/* Toast Message */
+.proxy-status-toast {
+  position: fixed;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
+  padding: 5px 14px;
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 100;
+  pointer-events: none;
+}

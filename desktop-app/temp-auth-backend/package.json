@@ -1,0 +1,17 @@
+{
+  "name": "netx-temp-auth-backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Temporary MongoDB-backed auth backend for NETX desktop development login. Development/testing only — not a production license system.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "seed": "node scripts/seed-dev-user.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "mongodb": "^6.3.0"
+  }
+}

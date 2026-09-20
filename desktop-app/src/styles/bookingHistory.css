@@ -1,0 +1,217 @@
+/* NETX — Booking History Stylesheet (matches media_1789626756741.png) */
+
+.history-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: #0b1a2d; /* dark border frame */
+  color: #1e293b;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* 1. Purple Titlebar */
+.history-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  background: #855be4;
+  padding: 0 10px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.history-titlebar-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.5px;
+}
+
+.history-titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.history-close-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-close-btn:hover {
+  background: rgba(239, 68, 68, 0.85);
+}
+
+/* 2. Main Content Area with Table & Floating Dialog */
+.history-body {
+  position: relative;
+  flex: 1;
+  background-color: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 2px solid #0b1a2d;
+  border-right: 2px solid #0b1a2d;
+}
+
+.history-table-container {
+  flex: 1;
+  overflow: auto;
+  background: #ffffff;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.history-table th {
+  background-color: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  padding: 7px 10px;
+  border-bottom: 1.5px solid #cbd5e1;
+  border-right: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.history-table th:last-child {
+  border-right: none;
+}
+
+.history-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #f1f5f9;
+  color: #0f172a;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.history-table td:last-child {
+  border-right: none;
+}
+
+.history-table tbody tr:hover {
+  background-color: #f0fdf4;
+}
+
+.history-empty-row {
+  text-align: center;
+  padding: 40px 10px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 3. Bottom Retention & Action Bar */
+.history-bottom-bar {
+  height: 48px;
+  background-color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 16px;
+  flex-shrink: 0;
+  border-left: 2px solid #0b1a2d;
+  border-right: 2px solid #0b1a2d;
+  border-bottom: 2px solid #0b1a2d;
+}
+
+.history-retention-label {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.history-retention-select {
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 65px;
+  outline: none;
+  cursor: pointer;
+}
+
+.history-save-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 5px 18px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: background 120ms ease;
+}
+
+.history-save-btn:hover {
+  background: #f1f5f9;
+}
+
+.history-clear-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 5px 18px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: background 120ms ease;
+}
+
+.history-clear-btn:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.history-status-toast {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.9);
+  color: #ffffff;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 100;
+  pointer-events: none;
+  animation: fadeInOut 2s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, 10px); }
+  15% { opacity: 1; transform: translate(-50%, 0); }
+  80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -10px); }
+}
+

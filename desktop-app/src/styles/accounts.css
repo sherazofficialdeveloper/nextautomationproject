@@ -1,0 +1,467 @@
+/* NETX Account / IRCTC ID Management Screen — Restored Original Visual Design */
+
+.accounts-screen {
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  padding: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.accounts-card {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  background: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.accounts-header {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 12px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.accounts-header button,
+.window-close-btn {
+  -webkit-app-region: no-drag;
+}
+
+.accounts-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accounts-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: #12325e;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+
+.accounts-count-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #12b5a5;
+  background: #e6f7f6;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.window-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: none;
+  background: rgba(18, 50, 94, 0.06);
+  color: #486581;
+  font-size: 15px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  flex-shrink: 0;
+}
+
+.window-close-btn:hover {
+  background: #e14d4d;
+  color: #ffffff;
+}
+
+.accounts-alert {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.accounts-alert--error {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.accounts-alert--success {
+  background: #def7ec;
+  color: #03543f;
+}
+
+/* Form Styles */
+.accounts-form {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.accounts-form-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #12325e;
+  margin: 0 0 2px;
+}
+
+.accounts-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.accounts-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334e68;
+}
+
+.accounts-input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  color: #102a43;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.accounts-input:hover {
+  border-color: #94a3b8;
+}
+
+.accounts-input:focus {
+  border-color: #12b5a5;
+  box-shadow: 0 0 0 3px rgba(18, 181, 165, 0.2);
+}
+
+.accounts-input--error {
+  border-color: #e14d4d;
+}
+
+.pw-input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.pw-input-wrapper .accounts-input {
+  padding-right: 38px;
+}
+
+.pw-toggle-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 4px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 120ms ease;
+}
+
+.pw-toggle-btn:hover {
+  color: #12325e;
+}
+
+.pw-toggle-btn:focus-visible {
+  outline: 2px solid #12b5a5;
+  outline-offset: 1px;
+}
+
+.field-error-text {
+  font-size: 11.5px;
+  color: #e14d4d;
+  margin-top: 2px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-save {
+  flex: 1;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #12b5a5;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.btn-save:hover:not(:disabled) {
+  background: #0ea294;
+}
+
+.btn-save:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #486581;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.btn-cancel:hover {
+  background: #cbd5e1;
+}
+
+/* Table Styles - Internal Vertical Scroll Container */
+.accounts-table-container {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.accounts-table-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.accounts-table-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.accounts-table-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.accounts-table-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.accounts-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.accounts-table th,
+.accounts-table td {
+  padding: 9px 10px;
+  text-align: left;
+  font-size: 13px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.accounts-table th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  color: #334e68;
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  z-index: 2;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
+
+.accounts-table tr:last-child td {
+  border-bottom: none;
+}
+
+.col-sn {
+  width: 10%;
+  color: #64748b;
+  font-weight: 600;
+  text-align: center;
+}
+
+.accounts-table th.col-sn,
+.accounts-table td.col-sn {
+  text-align: center;
+}
+
+.col-username {
+  width: 36%;
+}
+
+.col-password {
+  width: 28%;
+}
+
+.col-actions {
+  width: 26%;
+  text-align: right;
+}
+
+.accounts-table td.col-actions {
+  text-align: right;
+}
+
+.account-username {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #102a43;
+}
+
+.account-password-visible {
+  display: block;
+  color: #102a43;
+  font-family: inherit;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-password-mask {
+  display: block;
+  color: #64748b;
+  font-family: monospace;
+  letter-spacing: 1.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-btn-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.btn-action-edit,
+.btn-action-delete {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background 120ms ease;
+}
+
+.btn-action-edit {
+  color: #12325e;
+  background: #f1f5f9;
+}
+
+.btn-action-edit:hover {
+  background: #e2e8f0;
+}
+
+.btn-action-delete {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.btn-action-delete:hover {
+  background: #fee2e2;
+}
+
+.delete-confirm-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.delete-confirm-text {
+  font-size: 11px;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.btn-confirm-yes {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-confirm-yes:hover {
+  background: #b91c1c;
+}
+
+.btn-confirm-no {
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-confirm-no:hover {
+  background: #e2e8f0;
+}
+
+.accounts-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: #64748b;
+  font-size: 13px;
+}
+

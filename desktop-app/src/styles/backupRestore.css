@@ -1,0 +1,445 @@
+/* ==========================================================================
+   BACKUP & RESTORE WINDOW STYLES
+   Pixel-accurate recreation of:
+   - media_1789628764453.png (Backup Tab)
+   - media_1789628776913.png (Restore Tab)
+   - media_1789628789010.png (Delete Tab)
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+}
+
+/* 1. Outer cyan window frame */
+.bak-window-frame {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #00c4cc;
+  border: 4px solid #00c4cc;
+  overflow: hidden;
+}
+
+/* 2. Purple Draggable Titlebar */
+.bak-titlebar {
+  height: 28px;
+  background-color: #855be4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.bak-titlebar-title {
+  color: #000000;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.bak-close-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #00e5ff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  -webkit-app-region: no-drag;
+}
+
+.bak-close-btn:hover {
+  color: #ff4d4f;
+}
+
+/* 3. Main Cyan Wrapper holding tabs and grey panel */
+.bak-body-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #00c4cc;
+  padding: 0 1px 1px 1px;
+  overflow: hidden;
+}
+
+/* Tabs Navigation */
+.bak-tabs-nav {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding-left: 2px;
+  padding-top: 2px;
+}
+
+.bak-tab-btn {
+  background-color: #e2e8f0;
+  border: 1px solid #94a3b8;
+  border-bottom: none;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 14px;
+  cursor: pointer;
+  outline: none;
+  transition: background 100ms;
+}
+
+.bak-tab-btn:hover {
+  background-color: #f1f5f9;
+}
+
+.bak-tab-btn--active {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  font-weight: 800;
+  position: relative;
+  z-index: 2;
+  margin-bottom: -1px;
+  padding-bottom: 5px;
+}
+
+/* Content Panel */
+.bak-content-panel {
+  flex: 1;
+  background-color: #f1f5f9;
+  border: 1px solid #94a3b8;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Fieldset and Legend */
+.bak-fieldset {
+  border: 1px solid #cbd5e1;
+  border-radius: 2px;
+  padding: 8px 12px;
+  background-color: #f1f5f9;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.bak-legend {
+  font-size: 12px;
+  font-weight: 700;
+  color: #000000;
+  padding: 0 4px;
+}
+
+/* ==========================================================================
+   TAB 1: BACKUP SPECIFIC LAYOUT
+   ========================================================================== */
+.bak-checkbox-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  margin-top: 2px;
+  margin-bottom: 12px;
+}
+
+.bak-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.bak-checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 13px;
+  height: 13px;
+  accent-color: #2563eb;
+}
+
+.bak-checkbox-label--disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.bak-checkbox-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bak-form-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.bak-form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bak-form-label {
+  width: 125px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000000;
+  text-align: left;
+}
+
+.bak-form-input {
+  width: 220px;
+  height: 22px;
+  background-color: #ffffff;
+  border: 1px solid #94a3b8;
+  padding: 0 6px;
+  font-size: 12px;
+  outline: none;
+}
+
+.bak-form-input:focus {
+  border-color: #2563eb;
+}
+
+.bak-form-row--with-btn {
+  position: relative;
+}
+
+.bak-action-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 0;
+  background-color: #e2e8f0;
+  border: 1px solid #718096;
+  border-radius: 2px;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 28px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 100ms ease;
+}
+
+.bak-action-btn:hover {
+  background-color: #cbd5e1;
+}
+
+.bak-action-btn:active {
+  background-color: #94a3b8;
+}
+
+/* ==========================================================================
+   TAB 2: RESTORE SPECIFIC LAYOUT
+   ========================================================================== */
+.bak-restore-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 6px;
+  height: 100%;
+}
+
+.bak-restore-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bak-restore-label {
+  width: 100px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.bak-restore-input {
+  width: 240px;
+  height: 22px;
+  background-color: #ffffff;
+  border: 1px solid #94a3b8;
+  padding: 0 6px;
+  font-size: 11px;
+  outline: none;
+}
+
+.bak-browse-btn {
+  background-color: #e2e8f0;
+  border: 1px solid #718096;
+  border-radius: 2px;
+  color: #000000;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 24px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.bak-browse-btn:hover {
+  background-color: #cbd5e1;
+}
+
+.bak-restore-action-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: auto;
+  gap: 8px;
+}
+
+.bak-restore-btn {
+  background-color: #e2e8f0;
+  border: 1px solid #718096;
+  border-radius: 2px;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 32px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.bak-restore-btn:hover {
+  background-color: #cbd5e1;
+}
+
+.bak-append-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000000;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   TAB 3: DELETE SPECIFIC LAYOUT
+   ========================================================================== */
+.bak-delete-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  grid-template-rows: 1fr auto;
+  gap: 12px;
+  height: 100%;
+  padding-top: 4px;
+}
+
+.bak-delete-left-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+}
+
+.bak-side-btn {
+  background-color: #e2e8f0;
+  border: 1px solid #718096;
+  border-radius: 2px;
+  color: #000000;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 16px;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.bak-side-btn:hover {
+  background-color: #cbd5e1;
+}
+
+.bak-delete-radios-container {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+  padding-top: 10px;
+  padding-left: 20px;
+}
+
+.bak-radio-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bak-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000000;
+  cursor: pointer;
+}
+
+.bak-radio-label input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.bak-delete-action-row {
+  grid-column: 2 / 3;
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+}
+
+.bak-delete-btn {
+  width: 100%;
+  background-color: #e2e8f0;
+  border: 1px solid #718096;
+  border-radius: 2px;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 0;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.bak-delete-btn:hover {
+  background-color: #fee2e2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+/* Toast Message */
+.bak-toast {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1e293b;
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 14px;
+  border-radius: 3px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  white-space: nowrap;
+}
+

@@ -1,0 +1,424 @@
+/* NETX Classic Desktop Bank / Debit Card / Credit Card Management Stylesheet */
+/* Strict Visual Parity with Reference Screenshots */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 1. Main Window Outer Container */
+.bank-win-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  overflow: hidden;
+  user-select: none;
+  position: relative;
+}
+
+/* 2. Top Purple Desktop Header Bar */
+.bank-win-titlebar {
+  height: 32px;
+  background-color: #6452e9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.bank-win-title {
+  color: #111111;
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.1px;
+}
+
+.bank-win-title-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.bank-win-icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: opacity 120ms ease;
+}
+
+.bank-win-icon-btn:hover {
+  opacity: 0.8;
+}
+
+.bank-win-expand-icon {
+  display: block;
+}
+
+/* 3. Top Navigation Tabs: [ Bank ]  [ Debit Card ]  [ Credit Card ] */
+.bank-tabs-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  padding: 8px 14px 7px 14px;
+  background-color: #ffffff;
+  flex-shrink: 0;
+}
+
+.bank-tab-btn {
+  height: 27px;
+  background-color: #ffffff;
+  border: 2px solid #1e824c;
+  border-radius: 6px;
+  color: #2c3e50;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 120ms ease;
+  outline: none;
+}
+
+.bank-tab-btn:hover {
+  background-color: #f0fdf4;
+}
+
+.bank-tab-btn--active {
+  background-color: #f7fdf9 !important;
+  color: #15652c !important;
+  border: 2.5px solid #166534 !important;
+  font-weight: 800 !important;
+}
+
+.bank-tab-btn:disabled,
+.bank-tab-btn--disabled {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+  pointer-events: none;
+  border-color: #9ca3af !important;
+  color: #6b7280 !important;
+  background-color: #f3f4f6 !important;
+}
+
+/* Titlebar notification badge */
+.bank-title-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 3px;
+  max-width: 450px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-app-region: no-drag;
+}
+
+.bank-title-badge--error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.bank-title-badge--success {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #22c55e;
+}
+
+/* 4. Split Content Area */
+.bank-content-split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 14px 10px 14px;
+  min-height: 0;
+}
+
+/* Box Panels (Left and Right) */
+.bank-panel {
+  border: 1px solid #718096;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bank-panel--left {
+  padding: 6px 10px 6px 10px;
+  justify-content: space-between;
+}
+
+.bank-panel--right {
+  padding: 6px;
+  justify-content: space-between;
+}
+
+/* Form Layout */
+.bank-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.bank-form-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bank-form-row--split {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.bank-subrow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bank-form-label {
+  width: 140px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1a202c;
+  text-align: left;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bank-form-label--inline {
+  width: auto;
+  font-size: 11px;
+}
+
+.bank-form-label--cvv {
+  margin-left: 6px;
+}
+
+.bank-form-label--red {
+  color: #8b0000 !important;
+}
+
+/* Form Controls (Inputs, Selects) */
+.bank-form-input,
+.bank-form-select {
+  height: 21px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: #1a202c;
+  background-color: #ffffff;
+  border: 1px solid #8c9ba5;
+  border-radius: 1px;
+  padding: 1px 5px;
+  outline: none;
+}
+
+.bank-form-input:focus,
+.bank-form-select:focus {
+  border-color: #3182ce;
+}
+
+.bank-form-select--sm {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.bank-form-select--lg {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.bank-form-select--exp {
+  width: 58px;
+  height: 21px;
+}
+
+.bank-form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.bank-form-input--pin {
+  width: 72px;
+  flex: none;
+}
+
+.bank-form-input--cvv {
+  width: 52px;
+  flex: none;
+}
+
+/* Mint greenish background for Card fields */
+.bank-form-input--mint {
+  background-color: #f0fdf4 !important;
+  border: 1px solid #8db397 !important;
+}
+
+/* Cream/gray background for Name to Save */
+.bank-form-input--cream {
+  background-color: #f2f4f7 !important;
+  border: 1px solid #8c9ba5 !important;
+}
+
+.bank-expiry-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Checkbox Row */
+.bank-form-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 4px;
+  margin-top: 1px;
+}
+
+.bank-form-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bank-form-checkbox-label input[type='checkbox'] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.bank-form-checkbox-label--blue {
+  color: #0000cc;
+}
+
+.bank-form-checkbox-label--gray {
+  color: #555555;
+}
+
+/* Form Bottom Center Button */
+.bank-form-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 1px;
+}
+
+/* Classic Desktop Beveled Buttons */
+.bank-btn-classic {
+  background: linear-gradient(180deg, #fefefe 0%, #f4f4f2 100%);
+  border: 1px solid #9c9c9c;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0, 0, 0, 0.06);
+  border-radius: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #222222;
+  height: 22px;
+  padding: 0 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+}
+
+.bank-btn-classic:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff 0%, #e9e9e6 100%);
+  border-color: #7b7b7b;
+}
+
+.bank-btn-classic:active:not(:disabled) {
+  background: #e2e2df;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.bank-btn-classic:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bank-btn-classic--save {
+  width: 175px;
+  height: 23px;
+}
+
+/* Right Panel: List Box */
+.bank-listbox {
+  flex: 1;
+  background-color: #ffffff;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bank-list-item {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #000000;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.bank-list-item:hover {
+  background-color: #e5f1fb;
+}
+
+.bank-list-item--selected {
+  background-color: #3399ff !important;
+  color: #ffffff !important;
+}
+
+/* Right Panel Bottom Action Buttons */
+.bank-panel-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.bank-panel-actions .bank-btn-classic {
+  width: 100%;
+  padding: 0 4px;
+}
