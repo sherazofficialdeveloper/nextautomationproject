@@ -78,6 +78,51 @@ test('IRCTC Session Persistence & Booking Pipeline Suite', async (t) => {
     assert.equal(isAuth, false);
   });
 
+  await t.test('failed cookie restore reloads the page only once', async () => {
+    const userId = 'single-cookie-restore-test';
+    const accountId = 994231;
+    const sessionKey = irctcAutomationService.getSessionKey(userId, accountId);
+    const originalDetectAuthenticationState = irctcAutomationService._detectAuthenticationState;
+    const originalHandleLanguageAndAlerts = irctcAutomationService._handleLanguageAndAlerts;
+    let reloadCount = 0;
+
+    irctcAutomationService.setSessionState(userId, accountId, {
+      storageState: {
+        cookies: [{
+          name: 'test-session',
+          value: 'test',
+          domain: 'www.irctc.co.in',
+          path: '/',
+          expires: -1,
+        }],
+      },
+    });
+    irctcAutomationService._detectAuthenticationState = async () => ({
+      state: irctcAutomationService.AUTH_CODES.AUTH_REQUIRED,
+    });
+    irctcAutomationService._handleLanguageAndAlerts = async () => {};
+
+    try {
+      const restored = await irctcAutomationService._tryRestoreSessionFromDisk(
+        {
+          reload: async () => { reloadCount += 1; },
+        },
+        { addCookies: async () => {} },
+        userId,
+        accountId,
+        994231,
+        {}
+      );
+
+      assert.equal(restored, false);
+      assert.equal(reloadCount, 1);
+    } finally {
+      irctcAutomationService._sessionCache.delete(sessionKey);
+      irctcAutomationService._detectAuthenticationState = originalDetectAuthenticationState;
+      irctcAutomationService._handleLanguageAndAlerts = originalHandleLanguageAndAlerts;
+    }
+  });
+
   await t.test('_fillPassengerDetails fills DOM inputs safely without throwing', async () => {
     const filledNames = [];
     const filledAges = [];
@@ -161,4 +206,3 @@ test('IRCTC Session Persistence & Booking Pipeline Suite', async (t) => {
     assert.equal(fs.existsSync(acc2Dir), false, 'All account profiles must be deleted');
   });
 });
-

@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS proxies (
     port INTEGER NOT NULL,
     username VARCHAR(100),
     password VARCHAR(100),
+    encrypted_password TEXT,
+    password_iv TEXT,
+    password_auth_tag TEXT,
     check_irctc BOOLEAN DEFAULT false,
     status VARCHAR(50) DEFAULT 'untested' NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()

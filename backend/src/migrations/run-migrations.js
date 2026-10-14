@@ -1,7 +1,7 @@
-require('dotenv').config({ path: './.env' });
-const { getPool } = require('../config/database');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+const { getPool } = require('../config/database');
 
 const migrationsDir = path.join(__dirname);
 

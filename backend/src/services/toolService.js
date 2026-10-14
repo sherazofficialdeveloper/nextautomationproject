@@ -3,6 +3,7 @@
 const net = require('net');
 const { getPool } = require('../config/database');
 const irctcAutomationService = require('../automation/irctc/irctcAutomationService');
+const { encryptCredential } = require('../utils/credentialCrypto');
 
 function sanitizeString(val) {
   if (val === null || val === undefined) return '';
@@ -176,6 +177,12 @@ async function listProxies(userId) {
  */
 async function createProxy(userId, data) {
   const pool = getPool();
+  await pool.query(
+    `ALTER TABLE proxies
+     ADD COLUMN IF NOT EXISTS encrypted_password TEXT,
+     ADD COLUMN IF NOT EXISTS password_iv TEXT,
+     ADD COLUMN IF NOT EXISTS password_auth_tag TEXT`
+  );
 
   const ip = sanitizeString(data.ip);
   const port = parseInt(data.port, 10);
@@ -196,17 +203,20 @@ async function createProxy(userId, data) {
   }
 
   const query = `
-    INSERT INTO proxies (user_id, ip, port, username, password, check_irctc, status)
-    VALUES ($1, $2, $3, $4, $5, $6, 'untested')
+    INSERT INTO proxies (user_id, ip, port, username, encrypted_password, password_iv, password_auth_tag, password, check_irctc, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, 'untested')
     RETURNING id, user_id, ip, port, username, check_irctc, status, created_at
   `;
 
+  const encrypted = password ? encryptCredential(password) : null;
   const res = await pool.query(query, [
     userId,
     ip,
     port,
     username || null,
-    password || null,
+    encrypted?.encryptedPassword || null,
+    encrypted?.iv || null,
+    encrypted?.authTag || null,
     checkIrctc,
   ]);
 
@@ -338,4 +348,3 @@ module.exports = {
   checkProxy,
   clearAutomationCookies,
 };
-

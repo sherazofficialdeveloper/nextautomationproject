@@ -17,6 +17,136 @@ test('IRCTC Payment State Machine, Browser Lifecycle & Session Reuse Suite', asy
     assert.ok(BROWSER_LIFECYCLE.IDLE);
   });
 
+  await t.test('IRCTC iPay child selection chooses the New option with a descriptive suffix', async () => {
+    let mainCategoryClicked = false;
+    let childOptionClicked = false;
+    const options = [
+      {
+        selector: '.bank-type',
+        metadata: {
+          text: 'IRCTC iPay (Credit Card/Debit Card/UPI)',
+          ariaLabel: '',
+          title: '',
+          labelText: '',
+          visible: true,
+          disabled: false,
+        },
+        click: async () => { mainCategoryClicked = true; },
+      },
+      {
+        selector: '.bank-text',
+        metadata: {
+          text: 'IRCTC iPay New',
+          ariaLabel: '',
+          title: '',
+          labelText: '',
+          visible: true,
+          disabled: false,
+        },
+        click: async () => { childOptionClicked = true; },
+      },
+      {
+        selector: '.bank-text .col-pad',
+        metadata: {
+          text: 'IRCTC iPay New PG Charges (Upto): UPI & Rupay(DC):Nil',
+          ariaLabel: '',
+          title: '',
+          labelText: '',
+          visible: true,
+          disabled: false,
+        },
+        click: async () => { childOptionClicked = true; },
+      },
+    ];
+    const candidateLocators = options.map((option) => ({
+      evaluate: async (callback) => (
+        String(callback).includes('getBoundingClientRect')
+          ? option.metadata
+          : childOptionClicked
+      ),
+      scrollIntoViewIfNeeded: async () => {},
+      click: option.click,
+    }));
+    const mockPage = {
+      url: () => 'https://www.irctc.co.in/nget/payment/bkgPaymentOptions',
+      locator: (selector) => {
+        assert.match(selector, /\.bank-text/);
+        return {
+          count: async () => candidateLocators.length,
+          nth: (index) => candidateLocators[index],
+        };
+      },
+    };
+
+    const selected = await irctcAutomationService._selectIrctcIpaySubOption(
+      mockPage,
+      'IRCTC iPay'
+    );
+
+    assert.equal(selected, true);
+    assert.equal(mainCategoryClicked, false, 'The main payment category must not be clicked as the child option');
+    assert.equal(childOptionClicked, true, 'The IRCTC iPay New option must be selected');
+  });
+
+  await t.test('IRCTC iPay child selection handles Default Payment (Auto) and selects the New child option', async () => {
+    let mainCategoryClicked = false;
+    let childOptionClicked = false;
+    const options = [
+      {
+        selector: '.bank-type',
+        metadata: {
+          text: 'IRCTC iPay (Credit Card/Debit Card/UPI)',
+          ariaLabel: '',
+          title: '',
+          labelText: '',
+          visible: true,
+          disabled: false,
+        },
+        click: async () => { mainCategoryClicked = true; },
+      },
+      {
+        selector: '.bank-text',
+        metadata: {
+          text: 'IRCTC iPay New',
+          ariaLabel: '',
+          title: '',
+          labelText: '',
+          visible: true,
+          disabled: false,
+        },
+        click: async () => { childOptionClicked = true; },
+      },
+    ];
+    const candidateLocators = options.map((option) => ({
+      evaluate: async (callback) => (
+        String(callback).includes('getBoundingClientRect')
+          ? option.metadata
+          : childOptionClicked
+      ),
+      scrollIntoViewIfNeeded: async () => {},
+      click: option.click,
+    }));
+    const mockPage = {
+      url: () => 'https://www.irctc.co.in/nget/payment/bkgPaymentOptions',
+      locator: (selector) => {
+        assert.match(selector, /\.bank-text/);
+        return {
+          count: async () => candidateLocators.length,
+          nth: (index) => candidateLocators[index],
+        };
+      },
+    };
+
+    const selected = await irctcAutomationService._selectIrctcIpaySubOption(
+      mockPage,
+      'Default Payment (Auto)'
+    );
+
+    assert.equal(selected, true);
+    assert.equal(mainCategoryClicked, false, 'The main payment category must not be clicked as the child option');
+    assert.equal(childOptionClicked, true, 'The IRCTC iPay New option must be selected for Default Payment (Auto)');
+  });
+
   await t.test('launchTicketBrowser reuses healthy active session for same browser and account', async () => {
     const ticketId = 98761;
     let closedOldContext = false;

@@ -1,24 +1,44 @@
+# Dependencies
 node_modules/
 
+# Build output
 dist/
-
 build/
-
-.env
-
-.env.local
-
-.env.*.local
-
-*.log
-
-.DS_Store
-
-.vscode/
-
-.idea/
-
+.build/
 coverage/
 
-# Browser automation profiles
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Executables
+*.exe
+
+# Archives and backups
+*.zip
+*.bak
+
+# OS and editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Browser automation profiles and runtime data
 backend/storage/automation-profiles/
+backend/storage/test-profiles/
+backend/storage/sessions/
+backend/storage/qr-codes/
+backend/storage/debug/
+backend/storage/logs/
+backend/storage/tmp/
+backend/storage/temp/
+backend/scratch/
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.db-journal

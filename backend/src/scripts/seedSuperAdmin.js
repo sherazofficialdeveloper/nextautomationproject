@@ -59,6 +59,31 @@ async function seedSuperAdmin() {
       }
     }
 
+    // Also ensure default seller exists for testing
+    const sellerRoleRes = await pool.query(`SELECT id FROM roles WHERE name = 'SELLER';`);
+    if (sellerRoleRes.rows.length > 0) {
+      const sellerRoleId = sellerRoleRes.rows[0].id;
+      const sellerExisting = await pool.query(`SELECT id, username FROM users WHERE username = 'seller';`);
+      if (sellerExisting.rows.length === 0) {
+        const sellerHash = await bcrypt.hash('Seller123!', 10);
+        const insertSellerQuery = `
+          INSERT INTO users (username, name, email, password_hash, role_id, status)
+          VALUES ($1, $2, $3, $4, $5, 'active')
+          RETURNING id, username;
+        `;
+        const insertedSeller = await pool.query(insertSellerQuery, [
+          'seller',
+          'Demo Seller',
+          'seller@netx.local',
+          sellerHash,
+          sellerRoleId,
+        ]);
+        console.log('Seeded default seller account:', insertedSeller.rows[0]);
+      } else {
+        console.log('Default seller account already exists:', sellerExisting.rows[0]);
+      }
+    }
+
     process.exit(0);
   } catch (error) {
     console.error('Seeding error:', error);

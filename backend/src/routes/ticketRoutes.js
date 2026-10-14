@@ -28,6 +28,7 @@ router.post('/:id/start-booking', ticketController.startBooking);
 router.post('/:id/stop-booking', ticketController.stopBooking);
 router.get('/:id/booking-status', ticketController.getBookingStatus);
 router.get('/:id/availability', ticketController.getAvailability);
+router.post('/check-availability', ticketController.checkAvailabilityDirect);
 
 module.exports = router;
 
