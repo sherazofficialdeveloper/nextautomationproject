@@ -2,12 +2,13 @@
 
 const ticketService = require('../services/ticketService');
 const irctcAutomationService = require('../automation/irctc/irctcAutomationService');
+const railwayTrainSearchService = require('../services/railwayTrainSearchService');
 const ghumoTrainSearchService = require('../services/ghumoTrainSearchService');
 
 const { resolveBrowserConfig, checkAllBrowsersAvailability } = require('../automation/browserConfig');
 
 /**
- * Controller for ticket operations and live train search via Ghumo.Live.
+ * Controller for ticket operations and high-speed train search.
  */
 async function searchTrains(req, res, next) {
   try {
@@ -20,7 +21,7 @@ async function searchTrains(req, res, next) {
       return res.status(400).json({ error: 'Journey Date is required.' });
     }
 
-    const trains = await ghumoTrainSearchService.searchTrains({
+    const trains = await railwayTrainSearchService.searchTrains({
       fromStation,
       toStation,
       journeyDate,
@@ -161,9 +162,10 @@ async function launchBrowser(req, res, next) {
       return res.status(404).json({ error: 'Ticket not found.' });
     }
 
-    const { stopPayment = false } = req.body || {};
+    const { stopPayment = false, proxyId = null } = req.body || {};
     const result = await irctcAutomationService.launchTicketBrowser(req.user.id, ticket, browserConfig, {
       stopPayment: Boolean(stopPayment),
+      proxyId,
     });
 
     return res.status(200).json({
@@ -283,13 +285,42 @@ async function getAvailability(req, res, next) {
       return res.status(404).json({ error: 'Ticket not found.' });
     }
 
-    const availabilityResult = await ghumoTrainSearchService.checkAvailability({
+    const availabilityResult = await railwayTrainSearchService.checkAvailability({
       trainNumber: ticket.trainNumber,
       fromStation: ticket.fromStation,
       toStation: ticket.toStation,
       journeyDate: ticket.journeyDate,
       travelClass: ticket.selectedClass,
       quota: ticket.quota,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: availabilityResult,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function checkAvailabilityDirect(req, res, next) {
+  try {
+    const { trainNumber, fromStation, toStation, journeyDate, travelClass, quota, trainType } = req.body || {};
+
+    if (!trainNumber || !fromStation || !toStation || !journeyDate) {
+      return res.status(400).json({
+        error: 'trainNumber, fromStation, toStation, and journeyDate are required.',
+      });
+    }
+
+    const availabilityResult = await railwayTrainSearchService.checkAvailability({
+      trainNumber,
+      fromStation,
+      toStation,
+      journeyDate,
+      travelClass,
+      quota,
+      trainType,
     });
 
     return res.status(200).json({
@@ -327,7 +358,7 @@ module.exports = {
   stopBooking,
   getBookingStatus,
   getAvailability,
+  checkAvailabilityDirect,
   getBrowserAvailability,
 };
-
 

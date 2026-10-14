@@ -115,19 +115,23 @@ function decryptCredential(ciphertextHex, ivHex, authTagHex) {
   const key = getEncryptionKey();
 
   // If tagged as libsodium and sodium is ready
-  if (authTagHex.startsWith('sodium:') && isSodiumInitialized()) {
-    try {
-      const nonce = sodium.from_hex(ivHex);
-      const ciphertext = sodium.from_hex(ciphertextHex);
-      const decryptedBytes = sodium.crypto_secretbox_open_easy(ciphertext, nonce, key);
-      return sodium.to_string(decryptedBytes);
-    } catch (sodiumErr) {
-      // Fallback try legacy in case of mismatched tag
+  if (authTagHex.startsWith('sodium:')) {
+    if (isSodiumInitialized() || typeof sodium.crypto_secretbox_open_easy === 'function') {
       try {
-        return decryptCredentialLegacy(ciphertextHex, ivHex, authTagHex);
-      } catch {
-        throw new Error(`Failed to decrypt libsodium credential: ${sodiumErr.message}`);
+        const nonce = sodium.from_hex(ivHex);
+        const ciphertext = sodium.from_hex(ciphertextHex);
+        const decryptedBytes = sodium.crypto_secretbox_open_easy(ciphertext, nonce, key);
+        return sodium.to_string(decryptedBytes);
+      } catch (sodiumErr) {
+        // Fallback try legacy in case of mismatched tag
+        try {
+          return decryptCredentialLegacy(ciphertextHex, ivHex, authTagHex);
+        } catch {
+          throw new Error(`Failed to decrypt libsodium credential: ${sodiumErr.message}`);
+        }
       }
+    } else {
+      throw new Error('Sodium crypto engine is still initializing; await initCrypto() before decrypting.');
     }
   }
 
@@ -167,9 +171,17 @@ function decryptCredentialLegacy(ciphertextHex, ivHex, authTagHex) {
   return decrypted;
 }
 
+async function decryptCredentialAsync(ciphertextHex, ivHex, authTagHex) {
+  if (authTagHex && authTagHex.startsWith('sodium:') && !isSodiumInitialized()) {
+    await initCrypto();
+  }
+  return decryptCredential(ciphertextHex, ivHex, authTagHex);
+}
+
 module.exports = {
   encryptCredential,
   decryptCredential,
+  decryptCredentialAsync,
   encryptCredentialLegacy,
   decryptCredentialLegacy,
   initCrypto,

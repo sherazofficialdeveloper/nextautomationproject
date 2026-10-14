@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const { getPool } = require('../config/database');
+const { encryptCredential } = require('../utils/credentialCrypto');
 
 const BACKUP_MAGIC = 'NETX_BACKUP_V1';
 const PBKDF2_ITERATIONS = 100000;
@@ -223,7 +224,7 @@ async function createBackup(userId, options = {}) {
   // 5. Proxies & Preferences (included when All Backup is selected)
   if (allSelected) {
     const proxiesRes = await pool.query(
-      `SELECT ip, port, username, password, check_irctc, status
+      `SELECT ip, port, username, encrypted_password, password_iv, password_auth_tag, check_irctc, status
        FROM proxies
        WHERE user_id = $1
        ORDER BY id ASC`,
@@ -483,15 +484,20 @@ async function restoreBackup(userId, options = {}) {
     // 6. Proxies (if provided)
     if (Array.isArray(data.proxies)) {
       for (const p of data.proxies) {
+        const legacyProxyCredential = p.password && !p.encrypted_password
+          ? encryptCredential(p.password)
+          : null;
         await client.query(
-          `INSERT INTO proxies (user_id, ip, port, username, password, check_irctc, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          `INSERT INTO proxies (user_id, ip, port, username, encrypted_password, password_iv, password_auth_tag, password, check_irctc, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9)`,
           [
             userId,
             p.ip,
             p.port,
             p.username || null,
-            p.password || null,
+            p.encrypted_password || legacyProxyCredential?.encryptedPassword || null,
+            p.password_iv || legacyProxyCredential?.iv || null,
+            p.password_auth_tag || legacyProxyCredential?.authTag || null,
             Boolean(p.check_irctc),
             p.status || 'untested',
           ]

@@ -3,6 +3,11 @@
 const { getPool } = require('../config/database');
 const { normalizeJourneyDate } = require('../utils/dateUtils');
 
+function normalizePassengerFood(value) {
+  const food = String(value ?? '').trim();
+  return food === 'No Preference' || food === '' ? 'Non-Veg' : food;
+}
+
 /**
  * Service handling ticket validation, persistence, and ownership enforcement.
  */
@@ -35,6 +40,9 @@ class TicketService {
       mobileNumber = '',
       email = '',
       paymentMethod = 'Default Payment (Auto)',
+      bankName = '',
+      priorBank = '',
+      backupBank = '',
     } = ticketData || {};
 
     // 1. Validate Ticket Name
@@ -132,10 +140,11 @@ class TicketService {
         age: pAge,
         sex: typeof p.sex === 'string' && p.sex.trim() ? p.sex.trim() : 'Male',
         berthPreference: p.berthPreference || 'No Preference',
-        food: p.food || 'No Preference',
+        food: normalizePassengerFood(p.food),
         idCardType: p.idCardType || '',
         idNumber: p.idNumber || '',
         child: Boolean(p.child),
+        bed: Boolean(p.bed),
       };
     });
 
@@ -162,6 +171,9 @@ class TicketService {
       throw err;
     }
 
+    const cleanBankName = typeof bankName === 'string' && bankName.trim() ? bankName.trim() : (typeof priorBank === 'string' && priorBank.trim() ? priorBank.trim() : '');
+    const cleanBackupBank = typeof backupBank === 'string' && backupBank.trim() ? backupBank.trim() : '';
+
     // 7. Insert into database
     const insertQuery = `
       INSERT INTO tickets (
@@ -182,8 +194,10 @@ class TicketService {
         mobile_number,
         email,
         payment_method,
+        bank_name,
+        backup_bank,
         status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'saved')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'saved')
       RETURNING
         id,
         user_id AS "userId",
@@ -203,6 +217,9 @@ class TicketService {
         mobile_number AS "mobileNumber",
         email,
         payment_method AS "paymentMethod",
+        bank_name AS "bankName",
+        bank_name AS "priorBank",
+        backup_bank AS "backupBank",
         status,
         created_at AS "createdAt",
         updated_at AS "updatedAt";
@@ -226,6 +243,8 @@ class TicketService {
       cleanMobile,
       cleanEmail,
       paymentMethod,
+      cleanBankName,
+      cleanBackupBank,
     ];
 
     const { rows } = await pool.query(insertQuery, values);
@@ -281,6 +300,9 @@ class TicketService {
       mobileNumber = '',
       email = '',
       paymentMethod = 'Default Payment (Auto)',
+      bankName = '',
+      priorBank = '',
+      backupBank = '',
     } = ticketData || {};
 
     // 2. Validate Ticket Name
@@ -389,10 +411,11 @@ class TicketService {
         age: pAge,
         sex: typeof p.sex === 'string' && p.sex.trim() ? p.sex.trim() : 'Male',
         berthPreference: p.berthPreference || 'No Preference',
-        food: p.food || 'No Preference',
+        food: normalizePassengerFood(p.food),
         idCardType: p.idCardType || '',
         idNumber: p.idNumber || '',
         child: Boolean(p.child),
+        bed: Boolean(p.bed),
       };
     });
 
@@ -405,6 +428,8 @@ class TicketService {
     }
 
     const cleanEmail = typeof email === 'string' ? email.trim() : '';
+    const cleanBankName = typeof bankName === 'string' && bankName.trim() ? bankName.trim() : (typeof priorBank === 'string' && priorBank.trim() ? priorBank.trim() : '');
+    const cleanBackupBank = typeof backupBank === 'string' && backupBank.trim() ? backupBank.trim() : '';
 
     // 7. Update ticket in database
     const updateQuery = `
@@ -425,8 +450,10 @@ class TicketService {
         mobile_number = $14,
         email = $15,
         payment_method = $16,
+        bank_name = $17,
+        backup_bank = $18,
         updated_at = NOW()
-      WHERE id = $17 AND user_id = $18
+      WHERE id = $19 AND user_id = $20
       RETURNING
         id,
         user_id AS "userId",
@@ -446,6 +473,9 @@ class TicketService {
         mobile_number AS "mobileNumber",
         email,
         payment_method AS "paymentMethod",
+        bank_name AS "bankName",
+        bank_name AS "priorBank",
+        backup_bank AS "backupBank",
         status,
         created_at AS "createdAt",
         updated_at AS "updatedAt";
@@ -468,6 +498,8 @@ class TicketService {
       cleanMobile,
       cleanEmail,
       paymentMethod,
+      cleanBankName,
+      cleanBackupBank,
       parsedTicketId,
       userId,
     ];
@@ -502,6 +534,9 @@ class TicketService {
         t.mobile_number AS "mobileNumber",
         t.email,
         t.payment_method AS "paymentMethod",
+        t.bank_name AS "bankName",
+        t.bank_name AS "priorBank",
+        t.backup_bank AS "backupBank",
         t.status,
         t.created_at AS "createdAt",
         t.updated_at AS "updatedAt"
@@ -540,6 +575,9 @@ class TicketService {
         t.mobile_number AS "mobileNumber",
         t.email,
         t.payment_method AS "paymentMethod",
+        t.bank_name AS "bankName",
+        t.bank_name AS "priorBank",
+        t.backup_bank AS "backupBank",
         t.status,
         t.created_at AS "createdAt",
         t.updated_at AS "updatedAt"
@@ -582,4 +620,3 @@ class TicketService {
 }
 
 module.exports = new TicketService();
-

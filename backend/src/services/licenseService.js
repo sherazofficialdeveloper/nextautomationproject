@@ -74,6 +74,8 @@ async function createLicense(data) {
   const startsAt = startResolution.date;
   const expiresAt = rules.calculateExpiry(startsAt, duration.durationValue, duration.durationUnit);
 
+  const customKey = data.accessKey || data.key || data.customKey || null;
+
   const insertedId = await insertWithUniqueKey({
     status: 'ACTIVE',
     durationValue: duration.durationValue,
@@ -82,13 +84,25 @@ async function createLicense(data) {
     expiresAt,
     sellerId: data.sellerId,
     userId,
-  });
+  }, customKey);
 
-  return getAdmin(insertedId);
   return getAdmin(insertedId && typeof insertedId === 'object' ? insertedId.id : insertedId);
 }
 
-async function insertWithUniqueKey(baseData) {
+async function insertWithUniqueKey(baseData, customKey = null) {
+  if (customKey) {
+    const trimmed = String(customKey).trim().toUpperCase();
+    if (!trimmed) throw badRequest('License key cannot be empty.');
+    try {
+      return await repo.insertLicense({ ...baseData, accessKey: trimmed });
+    } catch (error) {
+      if (error && error.uniqueViolation) {
+        throw badRequest(`License key "${trimmed}" is already in use. Please enter or generate another key.`);
+      }
+      throw error;
+    }
+  }
+
   for (let attempt = 1; attempt <= MAX_KEY_GENERATION_ATTEMPTS; attempt += 1) {
     const accessKey = generateAccessKey();
     try {

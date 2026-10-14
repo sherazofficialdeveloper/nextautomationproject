@@ -40,30 +40,33 @@ async function login(req, res, next) {
       }
     }
 
-    // Verify license status and expiry from PostgreSQL
-    const { getPool } = require('../config/database');
-    const pool = getPool();
-    const licenseRes = await pool.query(
-      `SELECT id, status, starts_at, expires_at FROM licenses
-       WHERE (user_id = $1 OR seller_id = $1)
-       ORDER BY expires_at DESC
-       LIMIT 1;`,
-      [user.id]
-    );
+    // Verify license status and expiry from PostgreSQL for desktop client users only
+    // Administrative roles (SUPER_ADMIN, ADMIN, SELLER) manage the platform and must not be blocked by client license checks
+    if (user.role_name === 'USER') {
+      const { getPool } = require('../config/database');
+      const pool = getPool();
+      const licenseRes = await pool.query(
+        `SELECT id, status, starts_at, expires_at FROM licenses
+         WHERE user_id = $1
+         ORDER BY expires_at DESC
+         LIMIT 1;`,
+        [user.id]
+      );
 
-    if (licenseRes.rows.length > 0) {
-      const license = licenseRes.rows[0];
-      const todayStr = new Date().toISOString().split('T')[0];
-      const expiryStr = license.expires_at instanceof Date
-        ? license.expires_at.toISOString().split('T')[0]
-        : String(license.expires_at).split('T')[0];
+      if (licenseRes.rows.length > 0) {
+        const license = licenseRes.rows[0];
+        const todayStr = new Date().toISOString().split('T')[0];
+        const expiryStr = license.expires_at instanceof Date
+          ? license.expires_at.toISOString().split('T')[0]
+          : String(license.expires_at).split('T')[0];
 
-      if (license.status === 'REVOKED' || license.status === 'SUSPENDED') {
-        return res.status(403).json({ error: `License is ${license.status.toLowerCase()}.` });
-      }
+        if (license.status === 'REVOKED' || license.status === 'SUSPENDED') {
+          return res.status(403).json({ error: `License is ${license.status.toLowerCase()}.` });
+        }
 
-      if (expiryStr < todayStr || license.status === 'EXPIRED') {
-        return res.status(403).json({ error: 'License has expired.' });
+        if (expiryStr < todayStr || license.status === 'EXPIRED') {
+          return res.status(403).json({ error: 'License has expired.' });
+        }
       }
     }
 
@@ -128,11 +131,34 @@ async function getAdminDashboard(req, res, next) {
       `SELECT count(*)::int AS count FROM licenses WHERE status != 'ACTIVE' OR expires_at < CURRENT_DATE`
     );
 
+    const recentSellersRes = await client.query(
+      `SELECT u.id, u.username, u.status, u.created_at AS "createdAt"
+       FROM users u
+       JOIN roles r ON r.id = u.role_id
+       WHERE r.name = 'SELLER'
+       ORDER BY u.id DESC
+       LIMIT 5`
+    );
+    const recentKeysRes = await client.query(
+      `SELECT l.id, l.access_key AS "key", l.status,
+              to_char(l.starts_at, 'YYYY-MM-DD') AS "startsAt",
+              to_char(l.expires_at, 'YYYY-MM-DD') AS "expiresAt",
+              l.duration_value AS "durationValue",
+              l.duration_unit AS "durationUnit",
+              u.username AS "sellerUsername"
+       FROM licenses l
+       LEFT JOIN users u ON u.id = l.seller_id
+       ORDER BY l.id DESC
+       LIMIT 5`
+    );
+
     res.status(200).json({
       message: `Welcome to the Admin Dashboard, ${req.user.role}!`,
       totalSellers: sellerCountRes.rows[0].count,
       activeKeys: activeKeyRes.rows[0].count,
       inactiveKeys: inactiveKeyRes.rows[0].count,
+      recentSellers: recentSellersRes.rows,
+      recentKeys: recentKeysRes.rows,
     });
   } catch (error) {
     next(error);
