@@ -1092,6 +1092,7 @@ class IrctcAutomationService {
       }
 
       try {
+        contextOptions.headless = true;
         context = await patchright.chromium.launchPersistentContext(automationProfileDir, contextOptions);
       } catch (launchErr) {
         const err = new Error(`Persistent browser profile could not be opened: ${launchErr?.message || 'unknown error'}`);
@@ -2101,6 +2102,7 @@ class IrctcAutomationService {
 
       let context = null;
       try {
+        contextOptions.headless = true;
         context = await patchright.chromium.launchPersistentContext(automationProfileDir, contextOptions);
       } catch (launchErr) {
         console.error('[IRCTC Automation][NETWORK_CONNECTION_FAILED]', JSON.stringify({
