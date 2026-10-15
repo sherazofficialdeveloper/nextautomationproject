@@ -2057,16 +2057,21 @@ class IrctcAutomationService {
       }
 
       const contextOptions = {
-        headless: isHeadless,
-        executablePath: browserConfig.executablePath,
-        viewport: { width: 1440, height: 900 },
-        args: Array.isArray(OPTIMIZED_LAUNCH_ARGS) ? OPTIMIZED_LAUNCH_ARGS : [
+  headless: isHeadless,
+  executablePath: browserConfig.executablePath,
+  viewport: { width: 1440, height: 900 },
+  args: [
+    ...(Array.isArray(OPTIMIZED_LAUNCH_ARGS)
+      ? OPTIMIZED_LAUNCH_ARGS
+      : [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--window-size=1440,900',
-        ],
-      };
+        ]),
+    '--disable-http2',
+  ],
+};
 
       // Check for saved session in memory or on disk
       const cachedSession = this.getSessionState(userId, accountId);
