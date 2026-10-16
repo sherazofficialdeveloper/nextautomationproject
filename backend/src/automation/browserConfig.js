@@ -96,9 +96,15 @@ const OPTIMIZED_LAUNCH_ARGS = [
  * 3. ms-playwright directory in LOCALAPPDATA
  * 4. System Edge or Chrome as verified Chromium fallbacks (ensuring automation works out of the box)
  */
+
 function getApplicationChromiumPath() {
-  if (process.env.PATCHRIGHT_CHROMIUM_PATH && fs.existsSync(process.env.PATCHRIGHT_CHROMIUM_PATH)) {
-    return process.env.PATCHRIGHT_CHROMIUM_PATH;
+  // Docker / Linux / explicitly configured browser path
+  const configuredPath =
+    process.env.CHROME_EXECUTABLE_PATH ||
+    process.env.PATCHRIGHT_CHROMIUM_PATH;
+
+  if (configuredPath && fs.existsSync(configuredPath)) {
+    return configuredPath;
   }
 
   try {
@@ -109,14 +115,26 @@ function getApplicationChromiumPath() {
     // ignore
   }
 
+  // Windows-specific browser fallbacks
   if (process.env.LOCALAPPDATA) {
-    const msPlaywrightDir = path.join(process.env.LOCALAPPDATA, 'ms-playwright');
+    const msPlaywrightDir = path.join(
+      process.env.LOCALAPPDATA,
+      'ms-playwright'
+    );
+
     try {
       if (fs.existsSync(msPlaywrightDir)) {
         const entries = fs.readdirSync(msPlaywrightDir);
+
         for (const entry of entries) {
           if (entry.startsWith('chromium-')) {
-            const candidate = path.join(msPlaywrightDir, entry, 'chrome-win64', 'chrome.exe');
+            const candidate = path.join(
+              msPlaywrightDir,
+              entry,
+              'chrome-win64',
+              'chrome.exe'
+            );
+
             if (fs.existsSync(candidate)) return candidate;
           }
         }
@@ -126,7 +144,6 @@ function getApplicationChromiumPath() {
     }
   }
 
-  // Compatible system Chromium fallback (Edge is bundled with Windows 10/11; Chrome if installed)
   const edgeFallback = findExistingPath(WINDOWS_EDGE_PATHS);
   if (edgeFallback) return edgeFallback;
 
@@ -135,6 +152,7 @@ function getApplicationChromiumPath() {
 
   return null;
 }
+
 
 const SUPPORTED_BROWSERS = ['chrome', 'edge', 'brave', 'opera', 'comet', 'web1', 'web2', 'web3'];
 
