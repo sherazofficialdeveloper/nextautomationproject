@@ -99,7 +99,13 @@ async function listBookingHistory(userId, options = {}) {
 async function createBookingHistory(userId, data) {
   const pool = getPool();
 
-  const ticketName = sanitizeString(data.ticket_name || data.ticketName);
+  let ticketName = sanitizeString(data.ticket_name || data.ticketName);
+  const trainNo = sanitizeString(data.train_number || data.trainNumber);
+  const travelClass = sanitizeString(data.travel_class || data.travelClass || data.class);
+  if (ticketName && trainNo && !ticketName.includes(trainNo)) {
+    ticketName = `${ticketName} (${trainNo}${travelClass ? ' - ' + travelClass : ''})`;
+  }
+
   const irctcId = sanitizeString(data.irctc_id || data.irctcId || data.id);
   const fromStation = sanitizeString(data.from_station || data.fromStation || data.from);
   const toStation = sanitizeString(data.to_station || data.toStation || data.to);
@@ -108,7 +114,10 @@ async function createBookingHistory(userId, data) {
   const pnr = sanitizeString(data.pnr);
   const fare = data.fare !== undefined && data.fare !== null ? parseFloat(data.fare) : 0.0;
   const bookingDate = data.date || data.booking_date || new Date().toISOString().split('T')[0];
-  const remarks = sanitizeString(data.remarks) || 'Booking Success';
+  let remarks = sanitizeString(data.remarks) || 'Booking Success';
+  if (trainNo && !remarks.includes(trainNo)) {
+    remarks = `${remarks} [${trainNo}${travelClass ? '/' + travelClass : ''}]`;
+  }
 
   if (!ticketName) {
     const err = new Error('Ticket Name is required');
