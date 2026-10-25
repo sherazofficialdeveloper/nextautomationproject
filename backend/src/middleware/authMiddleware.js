@@ -20,6 +20,18 @@ function authenticate(req, res, next) {
   next();
 }
 
+function optionalAuthenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    const decoded = authService.verifyToken(token);
+    if (decoded) {
+      req.user = { id: decoded.id, role: decoded.role };
+    }
+  }
+  next();
+}
+
 function authorize(requiredRoles) {
   return (req, res, next) => {
     if (!req.user) {
@@ -36,5 +48,6 @@ function authorize(requiredRoles) {
 
 module.exports = {
   authenticate,
+  optionalAuthenticate,
   authorize,
 };

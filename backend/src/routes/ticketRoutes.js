@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticate, optionalAuthenticate } = require('../middleware/authMiddleware');
 const ticketController = require('../controllers/ticketController');
 
 const router = express.Router();
@@ -9,7 +9,7 @@ const router = express.Router();
 // Enforce authentication on all ticket routes
 router.use(authenticate);
 
-// IRCTC train search route
+// IRCTC train schedule search route
 router.post('/search', ticketController.searchTrains);
 
 // Browser availability

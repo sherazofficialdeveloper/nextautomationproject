@@ -2811,6 +2811,24 @@ function oceanLoginUiBusy() {
 function oceanPanelStatus(msg) {
     const text = String(msg || '').trim();
     if (!text) return;
+    const lower = text.toLowerCase();
+    if (
+        lower.includes('api mode') ||
+        lower.includes('login first') ||
+        lower.includes('watch token') ||
+        lower.includes('stale tokens') ||
+        lower.includes('token signal') ||
+        lower.includes('waiting for access_token') ||
+        lower.includes('continuescript') ||
+        lower.includes('verify click') ||
+        lower.includes('boot ->') ||
+        lower.includes('boot skip') ||
+        lower.includes('still on login form') ||
+        lower.includes('waiting for panel') ||
+        lower.includes('login ok  -')
+    ) {
+        return;
+    }
     try {
         if (typeof window.__oceanPushPanelStatus === 'function') {
             window.__oceanPushPanelStatus(text);
@@ -3246,7 +3264,7 @@ async function continueScript() {
     if (window.__OCEAN_DIRECT_BOOK__ && !oceanIsLoggedIn()) {
         try {
             localStorage.removeItem('ir:tokens');
-            oceanLog('API mode — cleared stale tokens; login first');
+            console.log('[OCEAN nget] Cleared stale tokens before fresh login');
         } catch (_) {}
     }
     if (window.__OCEAN_CONTINUE_LOCK__) {

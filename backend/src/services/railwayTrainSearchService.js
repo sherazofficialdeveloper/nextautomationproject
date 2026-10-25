@@ -359,7 +359,23 @@ function parseErailTrainRecords(text, isoDate) {
       }
 
       const runsToday = isoDate ? runsOnDate(daysBits, isoDate) : true;
-      const listedClasses = findClassesFromRaw(row);
+      let listedClasses = findClassesFromRaw(row);
+      const isPassengerOrLocal =
+        name.includes('MEMU') ||
+        name.includes('DEMU') ||
+        name.includes('EMU') ||
+        name.includes('PASSENGER') ||
+        name.includes('PSG') ||
+        name.includes('VISWABHARTI') ||
+        name.includes('VISWABHARATI') ||
+        (trainNo.length === 5 && (trainNo.startsWith('5') || trainNo.startsWith('6') || trainNo.startsWith('7')));
+
+      if (isPassengerOrLocal && !name.includes('EXPRESS') && !name.includes('SUPERFAST')) {
+        listedClasses = listedClasses.filter((c) => c === '2S' || c === 'SL');
+        if (listedClasses.length === 0) {
+          listedClasses = ['2S'];
+        }
+      }
       const rawDuration = fields[12].trim();
       let formattedDuration = rawDuration;
       if (rawDuration && rawDuration.includes('.')) {
@@ -495,6 +511,7 @@ class RailwayTrainSearchService {
       };
     }
 
+    let lastError = null;
     try {
       const session = await getOnnxSession();
       const jar = new CookieJar();

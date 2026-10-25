@@ -162,10 +162,13 @@ async function launchBrowser(req, res, next) {
       return res.status(404).json({ error: 'Ticket not found.' });
     }
 
-    const { stopPayment = false, proxyId = null } = req.body || {};
+    const { stopPayment = false, proxyId = null, targetUrl = null, forceNewBrowser = false, pairIndex = 1 } = req.body || {};
     const result = await irctcAutomationService.launchTicketBrowser(req.user.id, ticket, browserConfig, {
       stopPayment: Boolean(stopPayment),
       proxyId,
+      targetUrl,
+      forceNewBrowser: Boolean(forceNewBrowser),
+      pairIndex: Number(pairIndex) || 1,
     });
 
     return res.status(200).json({
@@ -219,15 +222,19 @@ async function startBooking(req, res, next) {
       return res.status(400).json({ error: 'Invalid ticket ID.' });
     }
 
-    const ticket = await ticketService.getTicketById(req.user.id, ticketId);
-    if (!ticket) {
+    const baseTicket = await ticketService.getTicketById(req.user.id, ticketId);
+    if (!baseTicket) {
       return res.status(404).json({ error: 'Ticket not found.' });
     }
 
-    const { stopPayment = false } = req.body || {};
+    const ticket = req.body?.ticket ? { ...baseTicket, ...req.body.ticket } : baseTicket;
+    const { stopPayment = false, browserKey = 'chrome', targetUrl = null, pairIndex = 1 } = req.body || {};
     const bookingStatus = await irctcAutomationService.startTicketBooking(req.user.id, ticketId, {
       stopPayment: Boolean(stopPayment),
       ticket,
+      browserKey,
+      targetUrl,
+      pairIndex: Number(pairIndex) || 1,
     });
 
     return res.status(200).json({

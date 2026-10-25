@@ -117,7 +117,7 @@ class IrctcDirectBookingRunner {
     }).catch(() => {});
 
     // 1. Resolve tokens: captured from CDP or login
-    const directTokens = capturedTokens || page?.__capturedTokens || null;
+    const directTokens = Object.assign({}, page?.__capturedTokens || {}, capturedTokens || {});
     if (directTokens && directTokens.access_token) {
       await page.evaluate((toks) => {
         try {

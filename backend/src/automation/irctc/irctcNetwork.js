@@ -18,12 +18,15 @@ const MAPPS_REFERERS = [
   [/mapps1\//i, 'https://www.irctc.co.in/nget/train-search'],
 ];
 
-function refererForUrl(url) {
+function refererForUrl(url, activePageUrl = '') {
+  const isEticket = String(activePageUrl || '').includes('/eticket');
+  const base = isEticket ? 'https://www.irctc.co.in/eticket' : 'https://www.irctc.co.in/nget';
   const u = String(url || '');
-  for (const [re, ref] of MAPPS_REFERERS) {
-    if (re.test(u)) return ref;
-  }
-  return 'https://www.irctc.co.in/nget/train-search';
+  if (/avlFarenquiry|boardingStationEnq/i.test(u)) return `${base}/booking/train-list`;
+  if (/allLapAvlFareEnq/i.test(u)) return `${base}/booking/psgninput`;
+  if (/addonServices/i.test(u)) return `${base}/booking/reviewBooking`;
+  if (/bookingInitPayment/i.test(u)) return `${base}/payment/bkgPaymentOptions`;
+  return `${base}/train-search`;
 }
 
 function acceptLanguageFromList(languages) {
@@ -83,7 +86,9 @@ function extractTokensFromHeaders(headers) {
   if (m) out.access_token = m[1];
   if (norm.bmiyek) out.refresh_token = norm.bmiyek;
   if (norm.greq) out.greq = norm.greq;
-  if (norm['spa-csrf-token']) out.csrf = norm['spa-csrf-token'];
+  if (norm['spa-csrf-token'] || norm['csrf-token']) {
+    out.csrf = norm['spa-csrf-token'] || norm['csrf-token'];
+  }
   return out;
 }
 
@@ -153,6 +158,9 @@ async function attachChromeIrctcNetwork(page) {
       if (partial.access_token) {
         console.log('[IRCTC Net] Captured access_token successfully via CDP.');
       }
+      if (partial.csrf) {
+        console.log('[IRCTC Net] Captured CSRF successfully via CDP:', String(partial.csrf).slice(0, 10) + '...');
+      }
     } catch (e2) {
       console.warn('[IRCTC Net] Push tokens notice:', e2.message || e2);
     }
@@ -164,10 +172,13 @@ async function attachChromeIrctcNetwork(page) {
     console.warn('[IRCTC Net] Network.enable notice:', e.message || e);
   }
 
+  const irctcRequestUrls = new Map();
+
   client.on('Network.requestWillBeSent', (ev) => {
     try {
       const url = ev.request && ev.request.url;
       if (!url || !/irctc\.co\.in/i.test(url)) return;
+      irctcRequestUrls.set(ev.requestId, url);
       if (!/mapps1|authprovider\/webtoken/i.test(url)) return;
       const toks = extractTokensFromHeaders(ev.request.headers);
       if (Object.keys(toks).length) {
@@ -181,7 +192,7 @@ async function attachChromeIrctcNetwork(page) {
       const url = ev.response && ev.response.url;
       if (!url || !/irctc\.co\.in/i.test(url)) return;
       const headers = ev.response.headers || {};
-      const partial = {};
+      const partial = extractTokensFromHeaders(headers);
       const csrf = headers['csrf-token'] || headers['Csrf-Token'] || headers['spa-csrf-token'];
       if (csrf) partial.csrf = csrf;
       if (/authprovider\/webtoken/i.test(url)) {
@@ -200,6 +211,27 @@ async function attachChromeIrctcNetwork(page) {
       }
     } catch (_) {}
   });
+
+  client.on('Network.responseReceivedExtraInfo', async (ev) => {
+    try {
+      const headers = ev.headers || {};
+      const csrf =
+        headers['csrf-token'] ||
+        headers['Csrf-Token'] ||
+        headers['spa-csrf-token'] ||
+        extractTokensFromHeaders(headers).csrf;
+      if (csrf) {
+        console.log('[IRCTC Net] Captured CSRF from responseReceivedExtraInfo:', csrf.slice(0, 10) + '...');
+        await pushTokens({ csrf });
+      }
+    } catch (_) {}
+  });
+
+  const clearTrackedRequest = (ev) => {
+    if (ev && ev.requestId) irctcRequestUrls.delete(ev.requestId);
+  };
+  client.on('Network.loadingFinished', clearTrackedRequest);
+  client.on('Network.loadingFailed', clearTrackedRequest);
 
   // Enable Fetch pattern interception for header rewriting
   try {
@@ -228,28 +260,44 @@ async function attachChromeIrctcNetwork(page) {
           Origin: 'https://www.irctc.co.in',
           Referer: 'https://www.irctc.co.in/nget/payment/bkgPaymentOptions',
         });
+        await client.send('Fetch.continueRequest', {
+          requestId,
+          headers,
+        });
       } else if (/irctcipay\.com/i.test(url)) {
         headers = mergeHeaderArray(asArray, {
           Origin: 'https://www.irctcipay.com',
           Referer: 'https://www.irctcipay.com/pgui/jsp/surchargePaymentPage.jsp',
         });
+        await client.send('Fetch.continueRequest', {
+          requestId,
+          headers,
+        });
       } else if (/mapps1/i.test(url)) {
-        headers = mergeHeaderArray(asArray, browserLikeHeaders(refererForUrl(url), acceptLanguage));
+        let pageUrl = '';
+        try {
+          pageUrl = (typeof page.url === 'function' ? page.url() : '') || '';
+        } catch (_) {}
+        headers = mergeHeaderArray(asArray, browserLikeHeaders(refererForUrl(url, pageUrl), acceptLanguage));
+        const toks = extractTokensFromHeaders(
+          Array.isArray(headers)
+            ? Object.fromEntries(headers.map((h) => [h.name, h.value]))
+            : headers
+        );
+        if (Object.keys(toks).length) pushTokens(toks);
+
+        await client.send('Fetch.continueRequest', {
+          requestId,
+          headers: Array.isArray(headers) ? headers : asArray,
+        });
       } else {
-        headers = asArray;
+        const toks = extractTokensFromHeaders(headers);
+        if (Object.keys(toks).length) pushTokens(toks);
+
+        await client.send('Fetch.continueRequest', {
+          requestId,
+        });
       }
-
-      const toks = extractTokensFromHeaders(
-        Array.isArray(headers)
-          ? Object.fromEntries(headers.map((h) => [h.name, h.value]))
-          : headers
-      );
-      if (Object.keys(toks).length) pushTokens(toks);
-
-      await client.send('Fetch.continueRequest', {
-        requestId,
-        headers: Array.isArray(headers) ? headers : asArray,
-      });
     } catch (e) {
       try {
         await client.send('Fetch.continueRequest', { requestId });

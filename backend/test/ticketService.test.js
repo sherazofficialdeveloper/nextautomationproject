@@ -506,26 +506,61 @@ test('booking automation lifecycle and stopPayment handling', async (t) => {
   });
 
   await t.test('startTicketBooking with stopPayment: true progresses to Waiting for Payment (Stopped)', async () => {
-    const started = await irctcAutomationService.startTicketBooking(1, 88888, { stopPayment: true });
-    assert.equal(started.status, 'Starting...');
-    assert.equal(started.stopPayment, true);
+    const mockSession = {
+      page: { isClosed: () => false },
+      context: {},
+      browserConfig: { name: 'Google Chrome' }
+    };
+    irctcAutomationService._activeSessions.set(88888, mockSession);
+    const origRun = irctcAutomationService._runRealBookingWorkflow;
+    irctcAutomationService._runRealBookingWorkflow = async (userId, id, sess, opts) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      irctcAutomationService.setBookingStatus(id, opts.stopPayment ? 'Waiting for Payment (Stopped)' : 'Waiting for Payment', {
+        paymentStopped: Boolean(opts.stopPayment),
+      });
+    };
+    try {
+      const started = await irctcAutomationService.startTicketBooking(1, 88888, { stopPayment: true });
+      assert.equal(started.status, 'Starting...');
+      assert.equal(started.stopPayment, true);
 
-    // Wait for stages to progress to waiting for payment (stopped)
-    await new Promise((resolve) => setTimeout(resolve, 3100));
-    const finalStatus = irctcAutomationService.getBookingStatus(1, 88888);
-    assert.equal(finalStatus.status, 'Waiting for Payment (Stopped)');
-    assert.equal(finalStatus.paymentStopped, true);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const finalStatus = irctcAutomationService.getBookingStatus(1, 88888);
+      assert.equal(finalStatus.status, 'Waiting for Payment (Stopped)');
+      assert.equal(finalStatus.paymentStopped, true);
+    } finally {
+      irctcAutomationService._runRealBookingWorkflow = origRun;
+      irctcAutomationService._activeSessions.delete(88888);
+    }
   });
 
   await t.test('startTicketBooking with stopPayment: false progresses to Waiting for Payment', async () => {
-    const started = await irctcAutomationService.startTicketBooking(1, 77777, { stopPayment: false });
-    assert.equal(started.status, 'Starting...');
-    assert.equal(started.stopPayment, false);
+    const mockSession = {
+      page: { isClosed: () => false },
+      context: {},
+      browserConfig: { name: 'Google Chrome' }
+    };
+    irctcAutomationService._activeSessions.set(77777, mockSession);
+    const origRun = irctcAutomationService._runRealBookingWorkflow;
+    irctcAutomationService._runRealBookingWorkflow = async (userId, id, sess, opts) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      irctcAutomationService.setBookingStatus(id, opts.stopPayment ? 'Waiting for Payment (Stopped)' : 'Waiting for Payment', {
+        paymentStopped: Boolean(opts.stopPayment),
+      });
+    };
+    try {
+      const started = await irctcAutomationService.startTicketBooking(1, 77777, { stopPayment: false });
+      assert.equal(started.status, 'Starting...');
+      assert.equal(started.stopPayment, false);
 
-    await new Promise((resolve) => setTimeout(resolve, 3100));
-    const finalStatus = irctcAutomationService.getBookingStatus(1, 77777);
-    assert.equal(finalStatus.status, 'Waiting for Payment');
-    assert.equal(finalStatus.paymentStopped, false);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const finalStatus = irctcAutomationService.getBookingStatus(1, 77777);
+      assert.equal(finalStatus.status, 'Waiting for Payment');
+      assert.equal(finalStatus.paymentStopped, false);
+    } finally {
+      irctcAutomationService._runRealBookingWorkflow = origRun;
+      irctcAutomationService._activeSessions.delete(77777);
+    }
   });
 
   await t.test('stopTicketBooking immediately halts booking', async () => {

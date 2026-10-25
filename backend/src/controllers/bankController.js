@@ -28,11 +28,11 @@ async function createBank(req, res, next) {
     }
 
     const newBank = await bankService.createBank(req.user.id, {
-      gateway: body.gateway,
+      gateway: body.gateway || 'IRCTC',
       bankName,
-      userName: body.userName,
-      password: body.password,
-      nameToSave: body.nameToSave,
+      userName: body.userName || body.bankUserName || body.upiId || '',
+      password: body.password || '',
+      nameToSave: body.nameToSave || body.displayName || '',
     });
     return res.status(201).json({
       success: true,
@@ -62,11 +62,11 @@ async function updateBank(req, res, next) {
     }
 
     const updated = await bankService.updateBank(req.user.id, bankId, {
-      gateway: body.gateway,
+      gateway: body.gateway || 'IRCTC',
       bankName,
-      userName: body.userName,
-      password: body.password,
-      nameToSave: body.nameToSave,
+      userName: body.userName || body.bankUserName || body.upiId || '',
+      password: body.password || '',
+      nameToSave: body.nameToSave || body.displayName || '',
     });
     return res.status(200).json({
       success: true,

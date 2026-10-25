@@ -63,7 +63,7 @@ class IrctcDirectBookingJS {
     /** AVAILABLE-0073 → 73; RAC/WL → 0 from this helper */
     seatsFromAvailStatus(statusStr) {
         const raw = String(statusStr || '').trim();
-        const m = raw.match(/AVAILABLE[-\s]*(\d+)/i);
+        const m = raw.match(/(?:AVAILABLE|CURR_AVBL|AVBL)[-\s]*(\d+)/i);
         if (!m) return 0;
         const n = parseInt(m[1], 10);
         return Number.isFinite(n) ? n : 0;
@@ -75,10 +75,16 @@ class IrctcDirectBookingJS {
         // `#` = quota/class not open yet. Empty ≠ closed (addon has no avlDayList).
         if (!s) return { kind: 'unknown', raw };
         if (s.includes('#')) return { kind: 'closed', raw };
-        if (/^AVAILABLE/i.test(s)) return { kind: 'available', raw };
+        if (/NOT AVAILABLE|NOT AVL|REGRET|TRAIN DEPARTED|CANCELLED|CLASS NOT EXIST|TRAIN CANCELLED/i.test(s)) {
+            return { kind: 'unavailable', raw };
+        }
+        if (/\b(?:AVAILABLE|CURR_AVBL|AVBL)\b|AVAILABLE/i.test(s)) {
+            return { kind: 'available', raw };
+        }
         if (/\bRAC\b/.test(s)) return { kind: 'rac', raw };
-        if (/\bWL\b/.test(s) || /WAITLIST/.test(s) || /GNWL|TQWL|PQWL|RLWL|CKWL/.test(s)) return { kind: 'wl', raw };
-        if (/NOT AVAILABLE|REGRET|TRAIN DEPARTED|CANCELLED|NOT AVL/.test(s)) return { kind: 'unavailable', raw };
+        if (/\bWL\b/.test(s) || /WAITLIST/.test(s) || /GNWL|TQWL|PQWL|RLWL|CKWL|RL|RSWL|NOSB/.test(s)) {
+            return { kind: 'wl', raw };
+        }
         return { kind: 'unknown', raw };
     }
 
@@ -308,6 +314,14 @@ class IrctcDirectBookingJS {
         const msg = this.isInvalidAccessToken(res?.status, res?.data, res?.text);
         if (!msg) return false;
         this.log(`TOKEN EXPIRED · ${msg}`);
+        try {
+            localStorage.removeItem('ir:tokens');
+            localStorage.removeItem('access_token');
+            sessionStorage.removeItem('ir:tokens');
+            sessionStorage.removeItem('access_token');
+            delete window.__OCEAN_LOGIN_OK__;
+            delete window.__OCEAN_APP_AUTH__;
+        } catch (_) {}
         const err = new Error(`TOKEN EXPIRED · ${msg}`);
         err.code = 'INVALID_TOKEN';
         err.fatal = true;
@@ -393,6 +407,9 @@ class IrctcDirectBookingJS {
     }
 
     async request(path, { method = 'GET', body = null, referer = null } = {}) {
+        if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) {
+            throw new Error('Booking stopped by user');
+        }
         const url = path.startsWith('http') ? path : `${this.BASE}${path}`;
         const headers = this.makeHeaders(referer, this.TOK.csrf);
         const seq = ++this._callSeq;
@@ -431,11 +448,19 @@ class IrctcDirectBookingJS {
           resp.headers.get('csrf-token') ||
           resp.headers.get('spa-csrf-token') ||
           '';
-        if (newCsrf) this.TOK.csrf = newCsrf;
+        if (newCsrf) {
+          this.TOK.csrf = newCsrf;
+          try {
+            const ls = JSON.parse(localStorage.getItem('ir:tokens') || '{}');
+            ls.csrf = newCsrf;
+            localStorage.setItem('ir:tokens', JSON.stringify(ls));
+          } catch (_) {}
+        }
 
         const text = await resp.text();
         let data = null;
-        try { data = JSON.parse(text); } catch {}
+        try { data = JSON.parse(text); } catch (_) {}
+        const contentType = resp.headers.get('content-type') || '';
 
         this.fileLog(`--- RESPONSE  status=${resp.status}  ${Date.now() - t0}ms ---`);
         if (newCsrf) this.fileLog(`csrf-token(header): ${this._maskSecret(newCsrf, 6)}`);
@@ -446,6 +471,8 @@ class IrctcDirectBookingJS {
             status: resp.status,
             data,
             text,
+            contentType,
+            bodyLength: text.length,
             csrf: newCsrf || this.TOK.csrf
         };
     }
@@ -462,6 +489,9 @@ class IrctcDirectBookingJS {
         let clientIpFails = 0;
         if (statusLabel) this.log(statusLabel);
         for (let i = 0; i < maxRetries; i++) {
+            if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) {
+                throw new Error('Booking stopped by user');
+            }
             res = await this.request(path, opts);
             // 401 invalid_token → status + stop immediately (no retry)
             this.stopOnInvalidToken(res);
@@ -553,7 +583,8 @@ class IrctcDirectBookingJS {
     async ensureFreshTokens() {
         this.log('Refreshing session (validateUser)...');
         const path = '/eticketing/protected/mapps1/validateUser?source=3';
-        const referer = 'https://www.irctc.co.in/nget/train-search';
+        const isEticket = typeof location !== 'undefined' && location.pathname.includes('/eticket');
+        const referer = isEticket ? 'https://www.irctc.co.in/eticket/train-search' : 'https://www.irctc.co.in/nget/train-search';
 
         let r = await this.request(path, { method: 'GET', referer });
         // invalid_token → stop 1st hit (no retry)
@@ -566,7 +597,23 @@ class IrctcDirectBookingJS {
                 await this.request(path, { method: 'GET', referer });
             }
         }
-        if (!this.TOK.csrf) throw new Error('Token refresh failed (no CSRF). Re-login.');
+        if (!this.TOK.csrf) {
+            for (let attempt = 0; attempt < 20 && !this.TOK.csrf; attempt += 1) {
+                try {
+                    const ls = JSON.parse(localStorage.getItem('ir:tokens') || '{}');
+                    this.TOK.csrf = ls.csrf || ls['spa-csrf-token'] || ls['csrf-token'] || '';
+                } catch (_) {}
+                if (!this.TOK.csrf) {
+                    try {
+                        const meta = document.querySelector('meta[name="_csrf"]');
+                        if (meta && meta.content) this.TOK.csrf = meta.content;
+                    } catch (_) {}
+                }
+                if (!this.TOK.csrf && attempt < 19) {
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+            }
+        }
         this.log('Session OK');
         return this.TOK;
     }
@@ -593,7 +640,9 @@ class IrctcDirectBookingJS {
             {
                 method: 'POST',
                 body,
-                referer: 'https://www.irctc.co.in/nget/train-search'
+                referer: typeof location !== 'undefined' && location.pathname.includes('/eticket')
+                    ? 'https://www.irctc.co.in/eticket/train-search'
+                    : 'https://www.irctc.co.in/nget/train-search'
             },
             { maxRetries: 20, delayMs: 400 }
         );
@@ -640,9 +689,15 @@ class IrctcDirectBookingJS {
 
         const res = await this.requestWithRetry(
             path,
-            { method: 'POST', body, referer: 'https://www.irctc.co.in/nget/booking/train-list' },
             {
-                maxRetries: details.skipTimingWait ? 10 : 100,
+                method: 'POST',
+                body,
+                referer: typeof location !== 'undefined' && location.pathname.includes('/eticket')
+                    ? 'https://www.irctc.co.in/eticket/booking/train-list'
+                    : 'https://www.irctc.co.in/nget/booking/train-list'
+            },
+            {
+                maxRetries: 100,
                 delayMs: 300,
                 statusLabel: 'Checking availability',
                 extraRetry: (o) => {

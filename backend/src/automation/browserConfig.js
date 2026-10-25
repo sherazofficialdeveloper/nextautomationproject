@@ -85,7 +85,8 @@ const OPTIMIZED_LAUNCH_ARGS = [
   '--disable-renderer-backgrounding',
   '--disable-background-timer-throttling',
   '--disable-ipc-flooding-protection',
-  '--window-size=1440,900',
+  '--window-position=-2500,-2500',
+  '--window-size=500,500',
 ];
 
 /**
@@ -172,7 +173,9 @@ const BROWSER_METADATA = {
  * If not installed, it safely falls back to the application-owned Patchright Chromium runtime.
  */
 function resolveBrowserConfig(identifier) {
-  const normalized = String(identifier || '').trim().toLowerCase();
+  let normalized = String(identifier || '').trim().toLowerCase();
+  if (normalized === 'microsoft' || normalized === 'msedge' || normalized === 'edge') normalized = 'edge';
+  else if (normalized === 'google' || normalized === 'google chrome' || normalized === 'chrome') normalized = 'chrome';
 
   if (!SUPPORTED_BROWSERS.includes(normalized)) {
     const err = new Error(`Invalid web identifier "${identifier}". Supported options are: chrome, edge, brave, opera, comet.`);

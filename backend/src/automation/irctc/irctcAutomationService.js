@@ -8,7 +8,7 @@ initCrypto().catch(() => {});
 const irctcConfig = require('../../config/irctc');
 const targetAccountService = require('../../services/targetAccountService');
 const { normalizeJourneyDate, formatJourneyDateForIrctc } = require('../../utils/dateUtils');
-const { OPTIMIZED_LAUNCH_ARGS } = require('../browserConfig');
+const { OPTIMIZED_LAUNCH_ARGS, resolveBrowserConfig } = require('../browserConfig');
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -1939,6 +1939,21 @@ class IrctcAutomationService {
     }
 
     // 2. Fast Session Reuse: check if an active persistent session already exists for this account + browser
+    if (options.forceNewBrowser || (options.targetUrl && this._accountSessions.get(sessionLockKey)?.targetUrl && this._accountSessions.get(sessionLockKey).targetUrl !== options.targetUrl)) {
+      console.log(`[IRCTC Automation][Launch] forceNewBrowser or targetUrl changed, closing previous session for ${sessionLockKey}...`);
+      await this.closeTicketBrowser(ticketIdNum, true).catch(() => {});
+      if (this._accountSessions.has(sessionLockKey)) {
+        const accSession = this._accountSessions.get(sessionLockKey);
+        try {
+          if (accSession?.context) await accSession.context.close().catch(() => {});
+          if (accSession?.browser) await accSession.browser.close().catch(() => {});
+        } catch (_) {}
+        this._accountSessions.delete(sessionLockKey);
+      }
+      this._launchLocks.delete(sessionLockKey);
+      await new Promise((r) => setTimeout(r, 600));
+    }
+
     if (this._accountSessions.has(sessionLockKey)) {
       const existingSession = this._accountSessions.get(sessionLockKey);
       const isAlive = Boolean(existingSession?.page && typeof existingSession.page.isClosed === 'function' && !existingSession.page.isClosed());
@@ -2057,12 +2072,13 @@ class IrctcAutomationService {
       const contextOptions = {
         headless: isHeadless,
         executablePath: browserConfig.executablePath,
-        viewport: { width: 1440, height: 900 },
+        viewport: { width: 1280, height: 800 },
+        bypassCSP: true,
         args: Array.isArray(OPTIMIZED_LAUNCH_ARGS) ? OPTIMIZED_LAUNCH_ARGS : [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--window-size=1440,900',
+          '--window-size=1280,800',
         ],
       };
 
@@ -2312,8 +2328,67 @@ class IrctcAutomationService {
    * Handle language selection modal (English/Hindi) and dismiss welcome/alert dialogs.
    */
   async _handleLanguageAndAlerts(page) {
-    if (!page || page.isClosed()) return;
+    if (!page || (typeof page.isClosed === 'function' && page.isClosed())) return;
     try {
+      // 0. Dismiss Guided Tour / Onboarding Tour Popup on IRCTC Beta (/eticket)
+      try {
+        const skipTourLocators = [
+          page.locator('button, a, span, div[role="button"]').filter({ hasText: /^skip\s*tour$/i }).first(),
+          page.locator('button:has-text("Skip tour"), a:has-text("Skip tour"), span:has-text("Skip tour")').first(),
+          page.locator('button:has-text("Skip Tour"), a:has-text("Skip Tour"), span:has-text("Skip Tour")').first(),
+          page.locator('[class*="skip-tour"], [aria-label*="skip" i]').first(),
+          page.locator('.driver-close-btn, .shepherd-button:has-text("Skip"), .introjs-skipbutton').first(),
+        ];
+        for (const loc of skipTourLocators) {
+          if (await loc.isVisible({ timeout: 200 }).catch(() => false)) {
+            await loc.click({ timeout: 1000, force: true }).catch(() => {});
+            console.log('[IRCTC Automation] Dismissed Onboarding Tour popup via Playwright locator');
+            break;
+          }
+        }
+      } catch (_) {}
+
+      await page.evaluate(() => {
+        try {
+          // Pre-set tour completion markers
+          const tourKeys = [
+            'hasSeenTour',
+            'tourCompleted',
+            'isTourCompleted',
+            'eticket_tour_completed',
+            'skipTour',
+            'guided_tour_completed',
+            'user_tour_status',
+            'irctc_tour_shown'
+          ];
+          for (const k of tourKeys) {
+            try { localStorage.setItem(k, 'true'); } catch (_) {}
+            try { sessionStorage.setItem(k, 'true'); } catch (_) {}
+          }
+
+          // Trigger real synthetic click on any button or element whose label is "Skip tour" / "Skip"
+          const allButtons = Array.from(document.querySelectorAll('button, a, [role="button"], span.btn, .btn, span, div'));
+          for (const el of allButtons) {
+            const t = ((el.innerText || el.textContent || '') + '').replace(/\s+/g, ' ').trim().toLowerCase();
+            if (t === 'skip tour' || t === 'skip-tour' || t === 'skip' || (t.includes('skip tour') && t.length < 25)) {
+              ['mousedown', 'mouseup', 'click'].forEach((evt) => {
+                try { el.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window })); } catch (_) {}
+              });
+              if (typeof el.click === 'function') el.click();
+              break;
+            }
+          }
+
+          // Only remove ACTUAL tour modal/overlay elements — NEVER query broad container tags like div/section/aside!
+          const tourElements = document.querySelectorAll(
+            '.shepherd-element, .shepherd-modal-overlay-container, .driver-overlay, .driver-popover, .introjs-overlay, .introjs-tooltip, app-guided-tour, [class*="guided-tour"], [class*="tour-backdrop"], [class*="shepherd-modal"], .cdk-overlay-pane:has([class*="tour"]), .popover.tour'
+          );
+          for (const el of tourElements) {
+            try { el.remove(); } catch (_) {}
+          }
+        } catch (_) {}
+      }).catch(() => {});
+
       // 1. Language Preference popup
       const langBtn = page
         .locator(
@@ -2378,12 +2453,44 @@ class IrctcAutomationService {
     if (!page || (typeof page.isClosed === 'function' && page.isClosed())) return false;
     try {
       const expectedUser = account?.irctcUserId || '';
+
+      // 1. Strict Unauthenticated Check: If Login button or Login form is visible, NEVER consider authenticated
+      const unauthCheck = typeof page.evaluate === 'function'
+        ? await page.evaluate(() => {
+            try {
+              const isVisible = (el) => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+              const loginBtn = document.querySelector('button.btn-login:not(.btn-action), button.btn-login, a.search_btn.loginText, #loginText, .loginText, a.loginText, a[aria-label*="login" i]');
+              if (isVisible(loginBtn)) return true;
+              const loginModal = document.querySelector('app-login, form[name="loginForm"], input[formcontrolname="userid"], #username, input#username, input[name="username"], .login-modal, #loginModal');
+              if (isVisible(loginModal)) return true;
+              return false;
+            } catch (_) {
+              return false;
+            }
+          }).catch(() => false)
+        : false;
+
+      if (unauthCheck) {
+        // Purge stale tokens left over from previous expired sessions
+        await page.evaluate(() => {
+          try { localStorage.removeItem('ir:tokens'); } catch (_) {}
+          try { localStorage.removeItem('access_token'); } catch (_) {}
+          try { sessionStorage.removeItem('ir:tokens'); } catch (_) {}
+          try { sessionStorage.removeItem('access_token'); } catch (_) {}
+          try { delete window.__OCEAN_LOGIN_OK__; } catch (_) {}
+          try { delete window.__OCEAN_APP_AUTH__; } catch (_) {}
+        }).catch(() => {});
+        return false;
+      }
+
+      // 2. Genuine DOM authenticated state check (Logout buttons, profile greeting)
       const locatorVisible = typeof page.locator === 'function'
         ? await page
             .locator(
               'button:has-text(/logout/i), a:has-text(/logout/i), span:has-text(/logout/i), ' +
               'button:has-text("लॉग आउट"), a:has-text("लॉग आउट"), span:has-text("लॉग आउट"), ' +
               'a[aria-label*="Logout" i], a[aria-label*="लॉग आउट"], span.user-profile, .user-name, ' +
+              'button.nav-link-1, .user-info, .profile-name, ' +
               'a[href*="logout" i], a[href*="my-profile" i], a[href*="user-profile" i]'
             )
             .first()
@@ -2403,19 +2510,26 @@ class IrctcAutomationService {
                 const userRegex = new RegExp(`\\b${targetUser}\\b`, 'i');
                 if (userRegex.test(headerText) || (/\bwelcome\b/i.test(headerText) && userRegex.test(bodyText))) return true;
               } else if (/\bwelcome\s+[a-z0-9_]{3,}\b/i.test(headerText)) return true;
-              for (let i = 0; i < sessionStorage.length; i++) {
-                const k = sessionStorage.key(i);
-                if (/access_token|user_profile|currentUser|auth_token/i.test(k)) {
-                  const val = sessionStorage.getItem(k);
-                  if (val && val.length > 8 && !/null|undefined/i.test(val)) return true;
-                }
-              }
               return false;
             } catch { return false; }
           }, expectedUser).catch(() => false)
         : false;
 
-      return locatorVisible || Boolean(domResult);
+      const isActuallyAuth = locatorVisible || Boolean(domResult);
+      if (!isActuallyAuth) {
+        // Red Box Parity: Never treat stale storage as authenticated.
+        await page.evaluate(() => {
+          try { localStorage.removeItem('ir:tokens'); } catch (_) {}
+          try { localStorage.removeItem('access_token'); } catch (_) {}
+          try { sessionStorage.removeItem('ir:tokens'); } catch (_) {}
+          try { sessionStorage.removeItem('access_token'); } catch (_) {}
+          try { delete window.__OCEAN_LOGIN_OK__; } catch (_) {}
+          try { delete window.__OCEAN_APP_AUTH__; } catch (_) {}
+        }).catch(() => {});
+        return false;
+      }
+
+      return true;
     } catch {
       return false;
     }
@@ -2431,14 +2545,14 @@ class IrctcAutomationService {
           element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length)
         );
         const userInput = document.querySelector(
-          'input[formcontrolname="userid"], input[placeholder*="User Name" i], ' +
+          '#username, input#username, input[name="username"], input[formcontrolname="userid"], input[placeholder*="User Name" i], ' +
           'input[placeholder*="User ID" i], #userId'
         );
         const pwdInput = document.querySelector(
-          'input[formcontrolname="password"], input[placeholder*="Password" i], ' +
+          '#password, input#password, input[name="password"], input[formcontrolname="password"], input[placeholder*="Password" i], ' +
           'input[type="password"], #pwd'
         );
-        const loginModal = document.querySelector('app-login, form[name="loginForm"], .modal-content');
+        const loginModal = document.querySelector('app-login, form[name="loginForm"], .modal-content, .login-modal, #loginModal');
         return {
           hasUserInput: visible(userInput),
           hasPwdInput: visible(pwdInput),
@@ -2463,11 +2577,11 @@ class IrctcAutomationService {
     }));
 
     const userInput = page.locator(
-      'input[formcontrolname="userid"], input[placeholder*="User Name" i], ' +
+      '#username, input#username, input[name="username"], input[formcontrolname="userid"], input[placeholder*="User Name" i], ' +
       'input[placeholder*="User ID" i], #userId'
     ).first();
     const pwdInput = page.locator(
-      'input[formcontrolname="password"], input[placeholder*="Password" i], ' +
+      '#password, input#password, input[name="password"], input[formcontrolname="password"], input[placeholder*="Password" i], ' +
       'input[type="password"], #pwd'
     ).first();
 
@@ -2489,6 +2603,7 @@ class IrctcAutomationService {
     }
 
     const signInBtn = page.locator(
+      'button.btn-action.btn-login.active, button.btn-action.btn-login, button.btn-login.active, ' +
       'app-login button[type="submit"]:has-text("SIGN IN"), ' +
       'app-login form button.search_btn:has-text("SIGN IN"), ' +
       'app-login button:has-text("SIGN IN"), app-login button[type="submit"], ' +
@@ -2565,10 +2680,10 @@ class IrctcAutomationService {
         try {
           const headerEl = document.querySelector('app-header') || document.querySelector('header') || document.body;
           const headerText = headerEl ? (headerEl.innerText || '') : '';
-          const loginBtn = document.querySelector('a.search_btn.loginText, a.loginText, button.btn-login, a[aria-label*="login" i]');
+          const loginBtn = document.querySelector('button.btn-login:not(.btn-action), button.btn-login, a.search_btn.loginText, a.loginText, a[aria-label*="login" i]');
           const isLoginBtnVisible = !!(loginBtn && (loginBtn.offsetWidth || loginBtn.offsetHeight || loginBtn.getClientRects().length));
           const hasLoginText = /\b(?:login|लॉग\s*इन)\b/i.test(headerText);
-          const hasLoginForm = !!document.querySelector('app-login, form[name="loginForm"], input[formcontrolname="userid"]');
+          const hasLoginForm = !!document.querySelector('app-login, form[name="loginForm"], input[formcontrolname="userid"], #username, input#username, input[name="username"]');
           return { isLoginBtnVisible, hasLoginText, hasLoginForm };
         } catch {
           return { isLoginBtnVisible: false, hasLoginText: false, hasLoginForm: false };
@@ -2603,7 +2718,7 @@ class IrctcAutomationService {
     }
 
     const loginBtnFinal = await page
-      .locator('a.search_btn.loginText, a:has-text(/login/i), a:has-text("लॉग इन"), button:has-text(/login/i)')
+      .locator('button.btn-login:not(.btn-action), button.btn-login, a.search_btn.loginText, a:has-text(/login/i), a:has-text("लॉग इन"), button:has-text(/login/i)')
       .first()
       .isVisible({ timeout: 1000 })
       .catch(() => false);
@@ -6770,7 +6885,7 @@ async _findReviewJourneyContinue(page) {
     return updated;
   }
 
-  async startTicketBooking(userId, ticketId, { stopPayment = false, ticket = null } = {}) {
+  async startTicketBooking(userId, ticketId, { stopPayment = false, ticket = null, account = null, browserKey = 'chrome', targetUrl = null } = {}) {
     const id = Number(ticketId);
 
     if (this._activeBookings.has(id)) {
@@ -6819,55 +6934,44 @@ async _findReviewJourneyContinue(page) {
       }
     }
     if (activeSession && activeSession.page && !activeSession.page.isClosed()) {
-      this._runRealBookingWorkflow(userId, id, activeSession, { stopPayment: isStop, ticket }).catch((err) => {
+      this._runRealBookingWorkflow(userId, id, activeSession, { stopPayment: isStop, ticket, account, targetUrl }).catch((err) => {
         console.error(`[IRCTC Automation] Real booking pipeline error for ticket ${id}:`, err);
         this.setBookingStatus(id, `Error: ${err.message}`);
       });
       return this.getBookingStatus(userId, id);
     }
 
-    const timers = [];
-    let cleanedUp = false;
-    const cleanupTimers = () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      timers.forEach((t) => clearTimeout(t));
-      timers.length = 0;
-      this._bookingTimers.delete(id);
-      this._activeBookings.delete(id);
-    };
-
-    const scheduleStage = (delayMs, statusText, extra = {}) => {
-      const t = setTimeout(() => {
-        const current = this._ticketBookingState.get(id);
-        if (!current || current.status === 'Stopped') {
-          cleanupTimers();
-          return;
+    // If active session is missing or page was closed, auto-launch browser and proceed with real workflow
+    const stateKey = id;
+    (async () => {
+      try {
+        console.log(`[IRCTC Automation] Ticket ${id}: No active session, auto-launching browser...`);
+        const browserIdentifier = browserKey || 'chrome';
+        const browserConfig = resolveBrowserConfig(browserIdentifier);
+        await this.launchTicketBrowser(userId, ticket || { id }, browserConfig, {
+          stopPayment: isStop,
+          account,
+          targetUrl,
+          forceNewBrowser: true,
+        });
+        let newSession = this._activeSessions.get(stateKey) || this._activeSessions.get(id);
+        if (!newSession || !newSession.page || newSession.page.isClosed()) {
+          const accId = ticket?.irctcAccountId || ticket?.irctcUserId || account?.id;
+          const bKey = browserConfig?.browserKey || browserIdentifier || 'chrome';
+          const lockKey = this.getSessionLockKey(accId, bKey);
+          newSession = this._accountSessions.get(lockKey);
         }
-        this.setBookingStatus(id, statusText, extra);
-        if (extra?.isFinal) {
-          cleanupTimers();
+        if (newSession && newSession.page && !newSession.page.isClosed()) {
+          await this._runRealBookingWorkflow(userId, id, newSession, { stopPayment: isStop, ticket, account, targetUrl });
+        } else {
+          this.setBookingStatus(id, 'Browser launched. Click Start Booking to begin.');
         }
-      }, delayMs);
-      timers.push(t);
-      return t;
-    };
+      } catch (launchErr) {
+        console.error(`[IRCTC Automation] Auto-launch failed for ticket ${id}:`, launchErr);
+        this.setBookingStatus(id, `Error: ${launchErr.message || 'Failed to launch browser'}`);
+      }
+    })().catch(() => {});
 
-    scheduleStage(500, 'Logging in...');
-    scheduleStage(1000, 'Login successful');
-    scheduleStage(1400, 'Searching Train...');
-    scheduleStage(1800, 'Checking Availability...');
-    scheduleStage(2200, 'Train Selected...');
-    scheduleStage(2600, 'Submitting Passengers...');
-    scheduleStage(2800, 'Opening Payment...');
-
-    if (isStop) {
-      scheduleStage(3000, 'Waiting for Payment (Stopped)', { paymentStopped: true, isFinal: true });
-    } else {
-      scheduleStage(3000, 'Waiting for Payment', { paymentStopped: false, isFinal: true });
-    }
-
-    this._bookingTimers.set(id, timers);
     return this.getBookingStatus(userId, id);
   }
 
@@ -6960,11 +7064,18 @@ async _findReviewJourneyContinue(page) {
 
       this.setBookingStatus(id, 'Opening IRCTC...');
       const currentUrl = (page && page.url && typeof page.url === 'function') ? page.url() : '';
-      if (!currentUrl || !currentUrl.includes('irctc.co.in')) {
-        const targetUrl = this.config.SECONDARY_WEB_URL || 'https://www.irctc.co.in/nget/train-search';
+      const desiredTargetUrl = options?.targetUrl || targetUrl || this.config.PRIMARY_WEB_URL || 'https://www.irctc.co.in/nget/train-search';
+      const needsSwitch = Boolean(
+        !currentUrl ||
+        !currentUrl.includes('irctc.co.in') ||
+        (desiredTargetUrl.includes('eticket') && !currentUrl.includes('eticket')) ||
+        (desiredTargetUrl.includes('nget') && !currentUrl.includes('nget'))
+      );
+
+      if (needsSwitch) {
         try {
           if (page && typeof page.goto === 'function') {
-            await this._gotoWithDiagnostics(page, targetUrl, {
+            await this._gotoWithDiagnostics(page, desiredTargetUrl, {
               ticketId: id,
               accountId: targetTicket?.irctcAccountId || activeSession?.accountId,
               browser: activeSession?.browserConfig?.name || activeSession?.browserKey,
@@ -7103,8 +7214,8 @@ async _findReviewJourneyContinue(page) {
           });
         } else {
           const isFormAlreadyOpen = alreadyAuth || await page.evaluate(() => {
-            const uInput = document.querySelector('input[formcontrolname="userid"], input[placeholder*="User Name" i], input[placeholder*="User ID" i]');
-            const loginModal = document.querySelector('app-login, form[name="loginForm"]');
+            const uInput = document.querySelector('input[formcontrolname="userid"], #username, input#username, input[name="username"], input[placeholder*="User Name" i], input[placeholder*="User ID" i]');
+            const loginModal = document.querySelector('app-login, form[name="loginForm"], .login-modal, #loginModal');
             const isVisible = (el) => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
             return isVisible(uInput) || isVisible(loginModal);
           }).catch(() => false);
@@ -7120,7 +7231,7 @@ async _findReviewJourneyContinue(page) {
 
             const loginBtn = page
               .locator(
-                'a.search_btn.loginText, a:has-text("LOGIN"), button.btn-login, button:has-text("LOGIN"), a:has-text("लॉग इन"), a[aria-label*="Login" i]'
+                'button.btn-login:not(.btn-action), button.btn-login, a.search_btn.loginText, a:has-text("LOGIN"), button:has-text("LOGIN"), a:has-text("लॉग इन"), a[aria-label*="Login" i]'
               )
               .first();
 
@@ -7135,8 +7246,9 @@ async _findReviewJourneyContinue(page) {
             if (!clickedLogin) {
               clickedLogin = await page.evaluate(() => {
                 const btn =
-                  document.querySelector('a.search_btn.loginText') ||
+                  document.querySelector('button.btn-login:not(.btn-action)') ||
                   document.querySelector('button.btn-login') ||
+                  document.querySelector('a.search_btn.loginText') ||
                   Array.from(document.querySelectorAll('button, a')).find(
                     (a) => /^\s*(?:login|लॉग\s*इन)\s*$/i.test(a.innerText ? a.innerText.trim() : '')
                   ) ||
@@ -7159,7 +7271,7 @@ async _findReviewJourneyContinue(page) {
                 break;
               }
               const hasForm = await page.evaluate(() => {
-                const u = document.querySelector('input[formcontrolname="userid"], input[placeholder*="User Name" i]');
+                const u = document.querySelector('input[formcontrolname="userid"], #username, input#username, input[name="username"], input[placeholder*="User Name" i]');
                 return !!(u && (u.offsetWidth || u.offsetHeight || u.getClientRects().length));
               }).catch(() => false);
               if (hasForm) {
@@ -7315,11 +7427,11 @@ async _findReviewJourneyContinue(page) {
 
         // Stage D: Detect Login Form modal (Stage timeout: 8s)
         const userInput = page
-          .locator('input[formcontrolname="userid"], input[placeholder*="User Name" i], input[placeholder*="User ID" i]')
+          .locator('#username, input#username, input[name="username"], input[formcontrolname="userid"], input[placeholder*="User Name" i], input[placeholder*="User ID" i]')
           .first();
 
         const pwdInput = page
-          .locator('input[formcontrolname="password"], input[placeholder*="Password" i], input[type="password"]')
+          .locator('#password, input#password, input[name="password"], input[formcontrolname="password"], input[placeholder*="Password" i], input[type="password"]')
           .first();
 
         const formAppeared = await userInput.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false);
@@ -7425,26 +7537,48 @@ async _findReviewJourneyContinue(page) {
 
         if (this._ticketBookingState.get(id)?.status === 'Stopped') return;
 
-        // Stage F: Check for pre-submission CAPTCHA prompt
+        // Stage F: CAPTCHA detection & submission preparation
+        const isEticketPortal = /irctc\.co\.in\/eticket\//i.test(
+          (page && page.url && typeof page.url === 'function') ? page.url() : (targetUrl || '')
+        );
+
         const captchaSelector =
           'app-captcha img, img.captcha-img, #captchaImg, input[formcontrolname*="captcha" i], input[placeholder*="captcha" i]';
-        const hasCaptcha = await page.locator(captchaSelector).first().isVisible({ timeout: 1500 }).catch(() => false);
+        const captchaInputSelector =
+          '#captcha, input[formcontrolname="captcha"], input[formcontrolname*="captcha" i], input[placeholder*="captcha" i]';
+
+        const hasCaptcha = !isEticketPortal && (await page.locator(captchaSelector).first().isVisible({ timeout: 800 }).catch(() => false));
 
         if (hasCaptcha) {
-          logStage(id, 'SECURITY_CHALLENGE', { type: 'CAPTCHA' });
-          this.setBookingStatus(id, 'Manual Interaction Required: CAPTCHA', {
-            authResult: {
-              success: false,
-              stage: 'authentication',
-              code: AUTH_CODES.CAPTCHA_REQUIRED,
-              message: 'IRCTC CAPTCHA challenge detected.',
-              displayMessage: 'Manual Verification Required: CAPTCHA',
-              currentUrl: (page.url && typeof page.url === 'function') ? page.url() : '',
-              retryable: true,
-            },
-          });
-          console.log(`[IRCTC Automation] CAPTCHA challenge detected for ticket ${id}. Pausing for manual interaction.`);
-          return;
+          // Focus captcha input so the user can easily type it if needed
+          await page.locator(captchaInputSelector).first().focus().catch(() => {});
+          this.setBookingStatus(id, 'Enter CAPTCHA & Sign In...');
+          console.log(`[IRCTC Automation] Ticket ${id}: CAPTCHA input focused on login modal.`);
+
+          // Wait up to 25 seconds for captcha entry or manual sign-in
+          const captchaEntryStart = Date.now();
+          while (Date.now() - captchaEntryStart < 25000) {
+            if (this._ticketBookingState.get(id)?.status === 'Stopped') return;
+            if (await this._isPageAuthenticated(page, account)) break;
+
+            const cVal = await page.evaluate((sel) => {
+              const el = document.querySelector(sel);
+              return el ? (el.value || '').trim() : '';
+            }, captchaInputSelector).catch(() => '');
+
+            if (cVal.length >= 3) {
+              console.log(`[IRCTC Automation] Ticket ${id}: Captcha entered (${cVal.length} chars). Submitting SIGN IN...`);
+              break;
+            }
+
+            const modalOpen = await page.evaluate(() => {
+              const u = document.querySelector('input[formcontrolname="userid"], #username, input#username');
+              return !!(u && (u.offsetWidth || u.offsetHeight));
+            }).catch(() => false);
+            if (!modalOpen) break;
+
+            await sleep(350);
+          }
         }
 
         // Stage G: Authenticating & Precision Result Detection
@@ -7519,7 +7653,7 @@ async _findReviewJourneyContinue(page) {
           // Precision Submit Button: strictly scoped to app-login modal (NEVER clicks background "Search Trains")
           const signInBtn = page
             .locator(
-              'app-login button[type="submit"]:has-text("SIGN IN"), app-login form button.search_btn:has-text("SIGN IN"), app-login button:has-text("SIGN IN"), app-login button:has-text("साइन इन"), app-login button[type="submit"]'
+              'button.btn-action.btn-login.active, button.btn-action.btn-login, button.btn-login.active, app-login button[type="submit"]:has-text("SIGN IN"), app-login form button.search_btn:has-text("SIGN IN"), app-login button:has-text("SIGN IN"), app-login button:has-text("साइन इन"), app-login button[type="submit"]'
             )
             .first();
 
@@ -7529,10 +7663,15 @@ async _findReviewJourneyContinue(page) {
           } else {
             // Fallback inside app-login modal
             const clickedModalBtn = await page.evaluate(() => {
-              const modal = document.querySelector('app-login') || document.querySelector('div.modal-content');
+              const betaBtn = document.querySelector('button.btn-action.btn-login.active, button.btn-action.btn-login, button.btn-login.active');
+              if (betaBtn && (betaBtn.offsetWidth || betaBtn.offsetHeight)) {
+                betaBtn.click();
+                return true;
+              }
+              const modal = document.querySelector('app-login') || document.querySelector('div.modal-content') || document.querySelector('.login-modal') || document.querySelector('.login-form');
               if (!modal) return false;
               const btn = Array.from(modal.querySelectorAll('button')).find((b) =>
-                /SIGN IN|साइन इन|LOGIN/i.test(b.innerText || '')
+                /SIGN IN|साइन इन|LOGIN/i.test(b.innerText || '') || b.classList.contains('btn-login')
               );
               if (btn) {
                 btn.click();
@@ -7621,6 +7760,24 @@ async _findReviewJourneyContinue(page) {
               break;
             }
 
+            // 3b. If access token was captured via API or CDP and login form is no longer open:
+            if (receivedTokenResponse || (loginCapturedTokens && loginCapturedTokens.access_token)) {
+              const formStillOpen = await page.evaluate(() => {
+                const modal = document.querySelector('app-login, form[name="loginForm"], .login-modal, #loginModal');
+                const u = document.querySelector('input[formcontrolname="userid"], #username, input#username, input[name="username"], #userId');
+                return !!((modal && (modal.offsetWidth || modal.offsetHeight)) || (u && (u.offsetWidth || u.offsetHeight)));
+              }).catch(() => false);
+              if (!formStillOpen) {
+                authenticated = true;
+                logStage(id, 'AUTH_SUCCESS', {
+                  tokenConfirmed: true,
+                  receivedTokenResponse: Boolean(receivedTokenResponse),
+                  hasCapturedToken: Boolean(loginCapturedTokens?.access_token),
+                });
+                break;
+              }
+            }
+
             // 4. Check for visible, non-empty error banner in modal or toast
             const errorMsg = await page
               .evaluate(() => {
@@ -7693,17 +7850,7 @@ async _findReviewJourneyContinue(page) {
               break;
             }
 
-            // 6. Check if CAPTCHA prompt appeared post-submission
-            const hasCaptchaPost = await page.locator(captchaSelector).first().isVisible({ timeout: 150 }).catch(() => false);
-            if (hasCaptchaPost) {
-              detectedFailure = {
-                code: AUTH_CODES.CAPTCHA_REQUIRED,
-                message: 'IRCTC CAPTCHA prompt detected.',
-                displayMessage: 'Manual Interaction Required: CAPTCHA',
-                retryable: true,
-              };
-              break;
-            }
+            // 6. Check for genuine CAPTCHA error post-submission (handled by error banner check above)
 
             await sleep(400);
           }
@@ -7761,46 +7908,55 @@ async _findReviewJourneyContinue(page) {
 
           if (!authenticated) {
             // Check whether login modal is still open
-            const formStillOpen = await page.locator('app-login, form[name="loginForm"]').first().isVisible().catch(() => false);
-            const { screenshotPath, diagnostics } = await this._captureSafeDebugArtifact(page, id, {
-              timeoutReached: true,
-              formStillOpen,
-              lastNetworkStatus: interceptedAuthResponse?.status,
-              receivedTokenResponse,
-            });
-
-            if (formStillOpen) {
-              logStage(id, 'UNKNOWN_AUTH_STATE', { formStillOpen: true });
-              this.setBookingStatus(id, 'Login Form Still Present — verification required', {
-                authResult: {
-                  success: false,
-                  stage: 'authentication',
-                  code: AUTH_CODES.LOGIN_FORM_STILL_PRESENT,
-                  message: 'IRCTC login form did not complete authentication within the timeout period.',
-                  displayMessage: 'IRCTC login form is still open. Manual interaction or CAPTCHA may be required.',
-                  currentUrl: (page.url && typeof page.url === 'function') ? page.url() : '',
-                  retryable: true,
-                  debugArtifact: screenshotPath,
-                  details: diagnostics,
-                },
+            const formStillOpen = await page.locator('app-login, form[name="loginForm"], .login-modal, #loginModal, #username').first().isVisible().catch(() => false);
+            if ((receivedTokenResponse || loginCapturedTokens?.access_token) && !formStillOpen) {
+              authenticated = true;
+              logStage(id, 'AUTH_SUCCESS', {
+                tokenConfirmed: true,
+                fallbackConfirmed: true,
+                hasCapturedToken: Boolean(loginCapturedTokens?.access_token),
               });
             } else {
-              logStage(id, 'UNKNOWN_AUTH_STATE', { formStillOpen: false, receivedTokenResponse });
-              this.setBookingStatus(id, 'Authentication Failed — unrecognized state', {
-                authResult: {
-                  success: false,
-                  stage: 'authentication',
-                  code: AUTH_CODES.UNKNOWN_AUTH_STATE,
-                  message: 'IRCTC returned an unrecognized authentication state.',
-                  displayMessage: 'IRCTC authentication could not be verified on the page (no Logout/user profile detected).',
-                  currentUrl: (page.url && typeof page.url === 'function') ? page.url() : '',
-                  retryable: true,
-                  debugArtifact: screenshotPath,
-                  details: diagnostics,
-                },
+              const { screenshotPath, diagnostics } = await this._captureSafeDebugArtifact(page, id, {
+                timeoutReached: true,
+                formStillOpen,
+                lastNetworkStatus: interceptedAuthResponse?.status,
+                receivedTokenResponse,
               });
+
+              if (formStillOpen) {
+                logStage(id, 'UNKNOWN_AUTH_STATE', { formStillOpen: true });
+                this.setBookingStatus(id, 'Login Form Still Present — verification required', {
+                  authResult: {
+                    success: false,
+                    stage: 'authentication',
+                    code: AUTH_CODES.LOGIN_FORM_STILL_PRESENT,
+                    message: 'IRCTC login form did not complete authentication within the timeout period.',
+                    displayMessage: 'IRCTC login form is still open. Manual interaction or CAPTCHA may be required.',
+                    currentUrl: (page.url && typeof page.url === 'function') ? page.url() : '',
+                    retryable: true,
+                    debugArtifact: screenshotPath,
+                    details: diagnostics,
+                  },
+                });
+              } else {
+                logStage(id, 'UNKNOWN_AUTH_STATE', { formStillOpen: false, receivedTokenResponse });
+                this.setBookingStatus(id, 'Authentication Failed — unrecognized state', {
+                  authResult: {
+                    success: false,
+                    stage: 'authentication',
+                    code: AUTH_CODES.UNKNOWN_AUTH_STATE,
+                    message: 'IRCTC returned an unrecognized authentication state.',
+                    displayMessage: 'IRCTC authentication could not be verified on the page (no Logout/user profile detected).',
+                    currentUrl: (page.url && typeof page.url === 'function') ? page.url() : '',
+                    retryable: true,
+                    debugArtifact: screenshotPath,
+                    details: diagnostics,
+                  },
+                });
+              }
+              return;
             }
-            return;
           }
         } finally {
           if (page.off) {
@@ -8758,6 +8914,8 @@ if (this._ticketBookingState.get(id)?.status === 'Stopped') return;
                 to_station: targetTicket?.toStation || 'CSMT',
                 journey_date: targetTicket?.journeyDate || new Date().toISOString().split('T')[0],
                 bank_name: targetTicket?.paymentMethod || 'SBI - UPI QR',
+                pnr: String(pnr),
+                fare: parseFloat(targetTicket?.total_fare || targetTicket?.fare || 0) || 0,
                 remarks: `Booking Confirmed (PNR: ${pnr})`,
               });
             }
@@ -8939,15 +9097,31 @@ if (this._ticketBookingState.get(id)?.status === 'Stopped') return;
       }
       this._bookingTimers.delete(id);
     }
+
+    // Signal active Playwright page in browser tab to immediately abort direct booking loops & countdowns
+    const session = this._activeSessions.get(id);
+    if (session?.page && !session.page.isClosed()) {
+      try {
+        await session.page.evaluate(() => {
+          if (typeof window !== 'undefined') {
+            window.__OCEAN_DIRECT_STOP__ = true;
+            window.__OCEAN_DIRECT_SEAT_STOP__ = 'Stopped by user';
+          }
+        }).catch(() => {});
+      } catch (_) {}
+    }
+
     return this.setBookingStatus(id, 'Stopped');
   }
 
   /**
    * Close active browser for a ticket if running.
    */
-  async closeTicketBrowser(ticketId) {
+  async closeTicketBrowser(ticketId, preserveActiveBooking = false) {
     const id = Number(ticketId);
-    this._activeBookings.delete(id);
+    if (!preserveActiveBooking) {
+      this._activeBookings.delete(id);
+    }
     if (this._activeSessions.has(id)) {
       const session = this._activeSessions.get(id);
       const otherSessions = Array.from(this._activeSessions.entries())

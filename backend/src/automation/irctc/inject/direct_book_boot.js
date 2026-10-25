@@ -7,9 +7,27 @@
     window.__OCEAN_DIRECT_BOOT__ = true;
   } catch (_) {}
 
+  function isSuppressedInternalStatus(msg) {
+    if (!msg || typeof msg !== 'string') return true;
+    const lower = msg.toLowerCase();
+    return (
+      lower.includes('api mode') ||
+      lower.includes('login first') ||
+      lower.includes('watch token') ||
+      lower.includes('stale tokens') ||
+      lower.includes('token signal') ||
+      lower.includes('waiting for access_token') ||
+      lower.includes('continuescript') ||
+      lower.includes('verify click') ||
+      lower.includes('boot ->') ||
+      lower.includes('boot skip')
+    );
+  }
+
   function log(msg) {
     const line = String(msg);
     console.log('[OCEAN Direct]', line);
+    if (isSuppressedInternalStatus(line)) return;
     try {
       if (typeof window.__oceanPushPanelStatus === 'function') {
         window.__oceanPushPanelStatus(line);
@@ -67,6 +85,9 @@
     const endAt = Date.now() + waitMs;
     let lastPushed = 0;
     while (true) {
+      if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) {
+        throw new Error('Booking stopped by user');
+      }
       const left = Math.max(0, endAt - Date.now());
       const now = Date.now();
       if (now - lastPushed >= 200 || left <= 0) {
@@ -263,9 +284,7 @@
     if (key.includes('PHONEPE') || key.includes('116')) {
       return { bankId: '116', mode: 'phonepe', label: 'PhonePe QR', txnType: 1, paramList: [] };
     }
-    if (key.includes('IPAY') || key.includes('IRCUPIQR') || key.includes('113')) {
-      return { bankId: '113', mode: 'ipay', label: 'IRCTC iPay QR', txnType: 1, paramList: [] };
-    }
+    // Universal direct UPI QR engine parity with Red Box (bank 116 handles all UPI apps including iPay)
     return { bankId: '116', mode: 'phonepe', label: 'PhonePe QR', txnType: 1, paramList: [] };
   }
 
@@ -288,7 +307,6 @@
   function applyAddonBankFallback(payGate, bankDetailDTO) {
     const chosen = payGate || resolveDirectQrPayment('PHONEPEUPIQR');
     const mode = String(chosen.mode || '');
-    if (mode !== 'paytm' && mode !== 'phonepe') return chosen;
 
     const paytm117 = {
       bankId: '117',
@@ -314,19 +332,18 @@
 
     if (mode === 'paytm') {
       if (bankListHasId(bankDetailDTO, '117')) return paytm117;
+      if (bankListHasId(bankDetailDTO, '116')) {
+        log('⚠️ Paytm 117 missing — fallback PhonePe (116)');
+        return phonepe116;
+      }
       if (bankListHasId(bankDetailDTO, '78')) {
         log('⚠️ Paytm UPI (117) not in addon list — init bankId 78 (Paytm)');
         return paytm78;
       }
-      if (bankListHasId(bankDetailDTO, '116')) {
-        log('⚠️ Paytm 117/78 missing — fallback PhonePe (116)');
-        return phonepe116;
-      }
-      log('⚠️ Paytm/PhonePe banks missing in addon — keeping ' + chosen.label);
-      return chosen;
+      return paytm117;
     }
 
-    // phonepe
+    // phonepe / ipay / default
     if (bankListHasId(bankDetailDTO, '116')) return phonepe116;
     if (bankListHasId(bankDetailDTO, '117')) {
       log('⚠️ PhonePe (116) not in addon list — fallback Paytm UPI (117)');
@@ -336,8 +353,7 @@
       log('⚠️ PhonePe (116) not in addon list — fallback Paytm (78)');
       return paytm78;
     }
-    log('⚠️ PhonePe/Paytm banks missing in addon — keeping ' + chosen.label);
-    return chosen;
+    return phonepe116;
   }
 
   async function waitForTokens(timeoutMs) {
@@ -409,9 +425,13 @@
     let responseData = null;
 
     try {
+      if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) throw new Error('Booking stopped by user');
       let T = await api.ensureFreshTokens();
+      if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) throw new Error('Booking stopped by user');
       await api.fetchTrainList(allDetails);
+      if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) throw new Error('Booking stopped by user');
       await api.fetchAvailabilityFare(allDetails);
+      if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) throw new Error('Booking stopped by user');
       const inj3 = await api.fetchBoardingEnq(allDetails);
 
       const waitTimeStr = ((inj3 && inj3.data && inj3.data.minPsgnInputTime) || '35000').split('#')[0];
@@ -437,6 +457,9 @@
         (inj6 && inj6.proceedCheck) ||
         api.checkProceedAfterAllLap(avlStatus, allDetails.bookOnlyIfCnf !== false);
       if (!proceed.ok) {
+        if (proceed.kind === 'unknown') {
+          throw new Error(proceed.error || 'Availability not confirmed by IRCTC');
+        }
         const msg = proceed.panelStatus || seatStopFromMessage(proceed.error) || 'NOT AVAILABLE';
         markSeatStop(msg);
         throw new Error(msg);
@@ -667,6 +690,44 @@
         const failMsg = String(
           finalResult.error || finalResult.note || `${payGate.label} failed`
         ).trim();
+        const backup = allDetails.backupBank || (allDetails.ticket && allDetails.ticket.backupBank);
+        if (backup && backup !== 'No Alternate Bank' && !allDetails._inBackupFailover) {
+          log(`[Failover] Primary gateway failed (${failMsg}). Triggering Backup Bank: ${backup}...`);
+          try {
+            allDetails._inBackupFailover = true;
+            const backupMode = String(backup).toLowerCase().includes('paytm')
+              ? 'paytm'
+              : String(backup).toLowerCase().includes('phone')
+              ? 'phonepe'
+              : 'ipay';
+            const backupHostResult = await window.__oceanNativeDirectBook({
+              mode: backupMode,
+              tokens: T,
+              wsUser: allDetails.wsUser,
+              clientTxnId: clientTxnId,
+              vpa: allDetails.vpa || '',
+              details: {
+                wsUser: allDetails.wsUser,
+                paymentmethod: backup,
+                vpa: allDetails.vpa || '',
+              },
+            });
+            const bResult = backupHostResult && backupHostResult.result ? backupHostResult.result : backupHostResult;
+            if (bResult && (bResult.status === 'BOOKED' || bResult.pnr)) {
+              runNote = 'BOOKED PNR=' + bResult.pnr;
+              log('BOOKED via Backup Bank! PNR: ' + bResult.pnr);
+              try {
+                window.__OCEAN_DIRECT_BOOKED_PNR__ = String(bResult.pnr || '');
+                if (typeof window.__oceanPushPanelStatus === 'function') {
+                  window.__oceanPushPanelStatus(runNote);
+                }
+              } catch (_) {}
+              return { ok: true, pnr: bResult.pnr, note: runNote, full_data: bResult.full_data || null };
+            }
+          } catch (bkErr) {
+            log(`[Failover] Backup bank failover error: ${bkErr.message}`);
+          }
+        }
         runNote = failMsg;
         try {
           window.__OCEAN_DIRECT_SEAT_STOP__ = failMsg;
@@ -684,6 +745,10 @@
       return { ok: true, pnr: (finalResult && finalResult.pnr) || null, note: runNote };
     } catch (e) {
       const raw = e && e.message ? e.message : String(e);
+      if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) {
+        log('Stopped');
+        return { ok: false, error: 'Stopped' };
+      }
       const seat =
         (e && e.panelStatus) ||
         (e && e.code === 'NO_SEAT' && raw) ||
@@ -734,6 +799,7 @@
 
   function resetDirectState() {
     running = false;
+    if (typeof window !== 'undefined') window.__OCEAN_DIRECT_RUNNING__ = false;
     pipelineDone = false;
     try {
       window.__OCEAN_DIRECT_PIPELINE_DONE__ = false;
@@ -752,11 +818,12 @@
     if (force) {
       resetDirectState();
     }
-    if (!force && running) {
+    if (!force && (running || (typeof window !== 'undefined' && window.__OCEAN_DIRECT_RUNNING__))) {
       log('Direct booking already in progress…');
       return { ok: false, note: 'Already running' };
     }
     running = true;
+    if (typeof window !== 'undefined') window.__OCEAN_DIRECT_RUNNING__ = true;
     pipelineDone = false;
     try {
       window.__OCEAN_DIRECT_PIPELINE_DONE__ = false;
@@ -767,11 +834,13 @@
     if (!loginGateOk()) {
       log('Waiting for login… (API after SIGN IN only)');
       running = false;
+      if (typeof window !== 'undefined') window.__OCEAN_DIRECT_RUNNING__ = false;
       return { ok: false, error: 'Waiting for login (SIGN IN required)' };
     }
     if (!hasAuthTokens()) {
       log('Waiting for access_token…');
       running = false;
+      if (typeof window !== 'undefined') window.__OCEAN_DIRECT_RUNNING__ = false;
       return { ok: false, error: 'Waiting for access_token' };
     }
 
@@ -795,6 +864,10 @@
       return result;
     } catch (e) {
       const raw = e && e.message ? e.message : String(e);
+      if (typeof window !== 'undefined' && window.__OCEAN_DIRECT_STOP__) {
+        log('Stopped');
+        return { ok: false, error: 'Stopped' };
+      }
       const seat =
         (e && e.panelStatus) ||
         (e && e.code === 'NO_SEAT' && raw) ||
@@ -810,6 +883,7 @@
       return { ok: false, error: seat || raw };
     } finally {
       running = false;
+      if (typeof window !== 'undefined') window.__OCEAN_DIRECT_RUNNING__ = false;
       markDirectPipelineFinished();
       // PNR / no-seat → keep panel status; don't overwrite with SCRIPT END
       try {
@@ -857,7 +931,7 @@
   function startTokenWatcher() {
     if (window.__OCEAN_DIRECT_TOKEN_WATCH__) return;
     window.__OCEAN_DIRECT_TOKEN_WATCH__ = true;
-    log('API mode — login first, then watch tokens…');
+    console.log('[OCEAN Direct] Token watcher active');
     const tick = () => {
       if (!window.__OCEAN_DIRECT_BOOK__ || isDirectPipelineFinished() || running) return;
       if (!loginGateOk()) return;
